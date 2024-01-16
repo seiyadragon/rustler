@@ -1,9 +1,13 @@
+use crate::Texture;
+
 use super::mesh::Mesh;
 use super::view::GraphicsLayer;
 use glm::Vec2;
 use glm::Vec3;
 use glm::Vec4;
 use glm::Mat4;
+
+use glm::Vector2;
 
 pub struct MatrixBuilder;
 impl MatrixBuilder {
@@ -48,6 +52,7 @@ pub trait Renderable {
 
 pub struct RenderableObject {
     pub mesh: Mesh,
+    pub texture_array: Vec<Texture>,
     pub position: Vec3,
     pub rotation: Vec3,
     pub scale: Vec3,
@@ -57,6 +62,7 @@ impl RenderableObject {
     pub fn new(mesh: Mesh, position: Vec3, rotation: Vec3, scale: Vec3) -> Self {
         RenderableObject {
             mesh: mesh,
+            texture_array: Vec::new(),
             position: position,
             rotation: rotation,
             scale: scale,
@@ -76,9 +82,18 @@ impl Renderable for RenderableObject {
     fn render(&self, layer: &GraphicsLayer) {
         self.mesh.shader_program.use_program(true);
         let mvp = layer.view.get_view_matrix() * layer.get_graphics_layer_matrix() * self.get_model_matrix();
-
+        
         self.mesh.shader_program.set_uniform_mat4f("mvp", mvp);
+        self.mesh.shader_program.set_uniform1i("sampler_obj", 0);
+
+        for i in 0..self.texture_array.len() {
+            self.texture_array[i].bind(i as u32, true)
+        }
 
         self.mesh.render();
+
+        for i in 0..self.texture_array.len() {
+            self.texture_array[i].bind(i as u32, false)
+        }
     }
 }

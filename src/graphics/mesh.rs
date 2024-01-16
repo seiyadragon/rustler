@@ -81,15 +81,16 @@ impl Mesh {
     pub fn new_cube() -> Self {
         let vertices = [
             // Front face
-            Vertex::new(Vec3::new(-1.0, -1.0, 1.0),Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 0
-            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),  // 1
-            Vertex::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),   // 2
-            Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),  // 3
+            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 0
+            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.25, 0.0, 0.0)), // 1
+            Vertex::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.25, 0.25, 0.0)), // 2
+            Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.25, 0.0)), // 3
+
             // Back face
-            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 4
-            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),  // 5
-            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),   // 6
-            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),  // 7
+            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.5, 0.0, 0.0)), // 4
+            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.75, 0.0, 0.0)), // 5
+            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.75, 0.25, 0.0)), // 6
+            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.5, 0.25, 0.0)), // 7
         ];
 
         let indices = [

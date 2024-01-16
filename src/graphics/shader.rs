@@ -12,38 +12,6 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
     layout (location = 0) in vec3 in_position;
     layout (location = 1) in vec3 in_tex_coords;
     layout (location = 2) in vec3 in_normal;
-    layout (location = 3) in vec3 in_bone_ids;
-    layout (location = 4) in vec3 in_bone_weights;
-
-    out vec3 tex_coords;
-
-    uniform mat4 mvp;
-
-    void main() {
-        gl_Position = (mvp) * vec4(in_position, 1.0);
-        tex_coords = in_tex_coords;
-    }
-";
-
-pub const DEFAULT_FRAGMENT_SHADER: &str = "
-    #version 430 core
-
-    in vec3 tex_coords;
-    out vec4 output_color;
-
-    uniform vec3 color = vec3(1.0, 0.0, 1.0);
-
-    void main() {
-        output_color = vec4(color, 1.0);
-    }
-";
-
-pub const DEFAULT_TEXTURE_VERTEX_SHADER: &str = "
-    #version 430 core
-
-    layout (location = 0) in vec3 in_position;
-    layout (location = 1) in vec3 in_tex_coords;
-    layout (location = 2) in vec3 in_normal;
     out vec3 tex_coords;
 
     uniform mat4 mvp;
@@ -54,16 +22,18 @@ pub const DEFAULT_TEXTURE_VERTEX_SHADER: &str = "
     }
 ";
 
-pub const DEFAULT_TEXTURE_FRAGMENT_SHADER: &str = "
+pub const DEFAULT_FRAGMENT_SHADER: &str = "
     #version 430 core
 
     in vec3 tex_coords;
     out vec4 output_color;
 
     uniform sampler2D sampler_obj;
+    uniform vec3 color;
 
     void main() {
-        output_color = texture(sampler_obj, tex_coords.xy);
+        output_color = texture(sampler_obj, tex_coords.xy) * vec4(color, 1.0);
+        //output_color = vec4(color, 1.0);
     }
 ";
 

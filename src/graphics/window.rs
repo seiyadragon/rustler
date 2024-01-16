@@ -18,6 +18,8 @@ use std::ffi::CString;
 use glutin::surface::Surface;
 use crate::util::entity::EntityManager;
 
+use super::color::Color;
+
 extern crate gl;
 
 pub struct Window {
@@ -129,10 +131,14 @@ impl Window {
                     self.current_context = Some(gl_context);
                 
                     gl::load_with(|s| self.gl_config.display().get_proc_address(CString::new(s).unwrap().as_c_str()) as *const _);
-                    Window::clear_screen(165, 93, 63);
+                    Window::clear_screen(Color::new(165, 93, 63, 255));
 
                     self.internal_window = Some(window);
                     self.is_context_current = true;
+
+                    unsafe {
+                        gl::CullFace(gl::BACK);
+                    }
 
                     loop_handler.init(&mut self.entity_manager);
                 },
@@ -144,7 +150,7 @@ impl Window {
                 },
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::RedrawRequested => {
-                        Self::clear_screen(165, 93, 63);
+                        Window::clear_screen(Color::new(165, 93, 63, 255));
                         loop_handler.render(&mut self.entity_manager);
                         self.entity_manager.render();
                         self.context_surface.as_ref().unwrap().swap_buffers(self.current_context.as_ref().unwrap()).unwrap();
@@ -192,9 +198,11 @@ impl Window {
         }).unwrap();
     }
 
-    pub fn clear_screen(r: u16, g: u16, b: u16) {
+    pub fn clear_screen(color: Color) {
+        let color_vec = color.to_vec4();
+
         unsafe {
-            gl::ClearColor(r as f32 / 256.0, g as f32 / 256.0, b as f32 / 256.0, 1.0);
+            gl::ClearColor(color_vec.x, color_vec.y, color_vec.z, color_vec.w);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
     }

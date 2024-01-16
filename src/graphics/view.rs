@@ -2,6 +2,7 @@ use glm::Vec2;
 use glm::Vec3;
 use glm::Mat4;
 
+use super::color::Color;
 use super::renderable::Renderable;
 use super::renderable::MatrixBuilder;
 
@@ -60,5 +61,14 @@ impl GraphicsLayer {
 
     pub fn render_object(&self, obj: &dyn Renderable) {
         obj.render(self);
+    }
+
+    pub fn clear_screen(&self, color: Color) {
+        let color_vec = color.to_vec4();
+
+        unsafe {
+            gl::ClearColor(color_vec.x, color_vec.y, color_vec.z, color_vec.w);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        }
     }
 }

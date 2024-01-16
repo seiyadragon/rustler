@@ -1,27 +1,40 @@
-use std::{ptr::{null, self}, ffi::CString};
-
-use glm::{Vec3, Vec2};
-use graphics::{window::{Window, EventLoopHandler, EventQueue, Input}, mesh::Mesh, vertex::{self, VAO, VBO, IBO, Vertex}, shader, view::{GraphicsLayer, self, View}, renderable::Model};
 use winit::{event::*, keyboard::*};
-use util::entity::*;
+use glm::*;
+use graphics::color::*;
+use graphics::renderable::*;
+use graphics::view::*;
+use graphics::window::*;
 use graphics::shader::*;
+use graphics::texture::*;
+use graphics::vertex::*;
+use util::entity::*;
+use graphics::mesh::*;
+use image::io::Reader;
 
 mod graphics;
 mod util;
 
 struct Trinagle {
-    model: Model,
+    model: RenderableObject,
     layer: GraphicsLayer,
+    rotation: f32,
 }
 
 impl Entity for Trinagle {
     fn init(&mut self) {
-        //let shader_program = ShaderProgram::default_shader_program();   
+        self.model.texture_array.push(Texture::from_file("./crate.png"));   
     }
 
     fn render(&mut self) {
-        self.model.model_mesh.shader_program.set_uniform3f("color", Vec3::new(0.0, 1.0, 0.0));
+        self.layer.clear_screen(Color::from_hex(0xff0000ff));
+        self.model.mesh.shader_program.set_uniform3f("color", Vec3::new(1.0, 1.0, 1.0));
+        self.model.rotation.y = self.rotation;
         self.layer.render_object(&self.model);
+
+        self.rotation += 0.0005;
+        if self.rotation >= 360.0 {
+            self.rotation = 0.0;
+        }
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
@@ -37,13 +50,15 @@ struct Application;
 
 impl EventLoopHandler for Application {
     fn init(&self, entity_manager: &mut Box<EntityManager>) {
-        let view = View::new(Vec2::new(1280.0/2.0, 720.0/2.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
+        let view = View::new(Vec2::new(1280.0, 720.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
         let layer = GraphicsLayer::default_graphics_layer(view);
-        let model = Model::new(Mesh::new_cube(), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 45.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
+        let model = RenderableObject::new(Mesh::new_cube(), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 45.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
+        let rot_tracker = 0.0;
 
         let triangle = Trinagle {
             layer: layer,
             model: model,
+            rotation: rot_tracker,
         };
 
         entity_manager.push(Box::from(triangle));
@@ -91,6 +106,10 @@ impl EventLoopHandler for Application {
 }
 
 fn main() {
+    let color = Color::from_hex(0x00ff00ff);
+    println!("{color}");
+    println!("{:#08x}", color.to_hex());
+
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2).unwrap();
     window.run(&app)
