@@ -28,7 +28,7 @@ impl Entity for Trinagle {
 
     fn render(&mut self) {
         self.layer.clear_screen(Color::from_hex(0xff0000ff));
-        self.model.mesh.shader_program.set_uniform_vec3_f32("color", Color::from_hex(0xff00ff00).to_vec3());
+        self.model.mesh.shader_program.set_uniform_vec3_f32("color", Color::from_hex(0xffffffff).to_vec3());
         self.model.rotation = Vec3::new(self.rotation, self.rotation, self.rotation);
         self.layer.render_object(&self.model);
     }
@@ -51,7 +51,7 @@ impl EventLoopHandler for Application {
     fn init(&self, entity_manager: &mut Box<EntityManager>) {
         let view = View::new(Vec2::new(1280.0/2.0, 720.0/2.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
         let layer = GraphicsLayer::default_graphics_layer(view);
-        let model = RenderableObject::new(Mesh::new_cube(), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 45.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
+        let model = RenderableObject::new(Mesh::new_plane(), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 45.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
         let rot_tracker = 0.0;
 
         let triangle = Trinagle {

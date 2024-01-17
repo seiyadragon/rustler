@@ -26,6 +26,7 @@ impl Vertex {
     }
 }
 
+#[derive(Clone)]
 pub struct VAO {
     pub id: GLuint,
     pub component_count: isize,
@@ -75,6 +76,7 @@ impl VAO {
     }
 }
 
+#[derive(Clone)]
 pub struct VBO {
     pub id: GLuint,
 }
@@ -116,6 +118,7 @@ impl VBO {
     }
 }
 
+#[derive(Clone)]
 pub struct IBO {
     pub id: GLuint,
 }

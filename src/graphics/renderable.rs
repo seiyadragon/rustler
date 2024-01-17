@@ -84,7 +84,6 @@ impl Renderable for RenderableObject {
         let mvp = layer.view.get_view_matrix() * layer.get_graphics_layer_matrix() * self.get_model_matrix();
         
         self.mesh.shader_program.set_uniform_mat4_f32("mvp", mvp);
-        self.mesh.shader_program.set_uniform_vec_i32("sampler_objs", &vec![0, 1, 2, 3]);
 
         for i in 0..self.texture_array.len() {
             self.texture_array[i].bind(i as u32, true)

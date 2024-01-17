@@ -2,6 +2,7 @@ use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
 use glm::Vec3;
 
+#[derive(Clone)]
 pub struct Mesh {
     pub vao: VAO,
     pub vertex_array: Vec<Vertex>,
@@ -30,6 +31,13 @@ impl Mesh {
         vao.set_vertex_attribute(shader_program.clone(), "in_bone_weights", 3);
 
         vao.bind(false);
+
+        /*new_mesh.shader_program.set_uniform_vec_i32("sampler_objs", &vec![
+            00, 01, 02, 03, 04, 05, 06, 07,
+            08, 09, 10, 11, 12, 13, 14, 15,
+            16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31,
+        ]);*/
 
         Mesh {
             vao: vao,
@@ -66,10 +74,10 @@ impl Mesh {
 
     pub fn new_plane() -> Self {
         let vertices = [
-            Vertex::new(Vec3::new(-1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(-1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
         ];
     
         let indices = [0, 1, 2, 2, 3, 0];
@@ -87,10 +95,10 @@ impl Mesh {
             Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.25, 0.0)), // 3
 
             // Back face
-            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.5, 0.0, 0.0)), // 4
-            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 1.0), Vec3::new(0.75, 0.0, 0.0)), // 5
-            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.75, 0.25, 0.0)), // 6
-            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 1.0), Vec3::new(0.5, 0.25, 0.0)), // 7
+            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0)), // 4
+            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.75, 0.0, 0.0)), // 5
+            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.75, 0.25, 0.0)), // 6
+            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.25, 0.0)), // 7
         ];
 
         let indices = [

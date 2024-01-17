@@ -171,6 +171,8 @@ impl Window {
                     if ticks >= target_ticks_per_second {
                         self.current_frames_per_second = frames;
                         self.current_ticks_per_second = ticks;
+
+                        println!("FPS: {0} | TPS: {1}", self.current_frames_per_second, self.current_ticks_per_second);
                 
                         frames = 0;
                         ticks = 0;
@@ -183,11 +185,9 @@ impl Window {
 
                         ticks += 1;
                         tick_lag -= 1000.0 / (target_ticks_per_second as f64);
-
-                        println!("FPS: {0} | TPS: {1}", self.current_frames_per_second, self.current_ticks_per_second);
                     }
 
-                    let frame_elapsed = last_frame_time.elapsed().unwrap();
+                    //let frame_elapsed = last_frame_time.elapsed().unwrap();
 
                     //if frame_elapsed.as_millis() > 1000 / (target_frames_per_second as u128) {
                     //    self.internal_window.as_ref().unwrap().request_redraw();
