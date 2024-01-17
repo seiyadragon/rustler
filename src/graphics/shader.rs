@@ -1,5 +1,5 @@
 use gl::types::*;
-use glm::{Vec2, Vec3, Vec4};
+use glm::{Vec2, Vec3, Vec4, Vector2, Vector3, Vector4, Matrix4};
 use core::fmt;
 use std::{error::Error, ptr::{null, null_mut}};
 use std::ffi::CString;
@@ -28,12 +28,13 @@ pub const DEFAULT_FRAGMENT_SHADER: &str = "
     in vec3 tex_coords;
     out vec4 output_color;
 
-    uniform sampler2D sampler_obj;
+    uniform sampler2D sampler_objs[4];
     uniform vec3 color;
 
     void main() {
-        output_color = texture(sampler_obj, tex_coords.xy) * vec4(color, 1.0);
-        //output_color = vec4(color, 1.0);
+        highp int sampler_index = int(tex_coords.z);
+
+        output_color = texture(sampler_objs[sampler_index], tex_coords.xy) * vec4(color, 1.0);
     }
 ";
 
@@ -224,7 +225,7 @@ impl ShaderProgram {
         program
     }
 
-    pub fn set_uniform1f(&self, name: &str, value: f32) {
+    pub fn set_uniform_f32(&self, name: &str, value: f32) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -236,19 +237,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform1i(&self, name: &str, value: i32) {
-        let c_str = CString::new(name.as_bytes()).unwrap();
-
-        self.use_program(true);
-
-        unsafe {
-            gl::Uniform1i(gl::GetUniformLocation(self.program_id, c_str.as_ptr() as *const i8), value);
-        }
-
-        self.use_program(false);
-    }
-
-    pub fn set_uniform2f(&self, name: &str, value: Vec2) {
+    pub fn set_uniform_vec2_f32(&self, name: &str, value: Vec2) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -260,7 +249,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform3f(&self, name: &str, value: Vec3) {
+    pub fn set_uniform_vec3_f32(&self, name: &str, value: Vec3) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -272,7 +261,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform4f(&self, name: &str, value: Vec4) {
+    pub fn set_uniform_vec4_f32(&self, name: &str, value: Vec4) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -284,7 +273,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_mat4f(&self, name: &str, value: Mat4) {
+    pub fn set_uniform_mat4_f32(&self, name: &str, value: Mat4) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -299,6 +288,78 @@ impl ShaderProgram {
             let array_ptr: *const f32 = std::mem::transmute(&array);
 
             gl::UniformMatrix4fv(gl::GetUniformLocation(self.program_id, c_str.as_ptr()), 1, gl::FALSE, array_ptr);
+        }
+
+        self.use_program(false);
+    }
+
+    pub fn set_uniform_vec_f32(&self, name: &str, vec: &Vec<f32>) {
+        let c_str = CString::new(name.as_bytes()).unwrap();
+
+        self.use_program(true);
+
+        unsafe {
+            gl::Uniform1fv(gl::GetUniformLocation(self.program_id, c_str.as_ptr()), vec.len() as i32, vec.as_ptr())
+        }
+
+        self.use_program(false);
+    }
+
+    pub fn set_uniform_i32(&self, name: &str, value: i32) {
+        let c_str = CString::new(name.as_bytes()).unwrap();
+
+        self.use_program(true);
+
+        unsafe {
+            gl::Uniform1i(gl::GetUniformLocation(self.program_id, c_str.as_ptr() as *const i8), value);
+        }
+
+        self.use_program(false);
+    }
+
+    pub fn set_uniform_vec2_i32(&self, name: &str, value: Vector2<i32>) {
+        let c_str = CString::new(name.as_bytes()).unwrap();
+
+        self.use_program(true);
+
+        unsafe {
+            gl::Uniform2i(gl::GetUniformLocation(self.program_id, c_str.as_ptr() as *const i8), value.x, value.y);
+        }
+
+        self.use_program(false);
+    }
+
+    pub fn set_uniform_vec3_i32(&self, name: &str, value: Vector3<i32>) {
+        let c_str = CString::new(name.as_bytes()).unwrap();
+
+        self.use_program(true);
+
+        unsafe {
+            gl::Uniform3i(gl::GetUniformLocation(self.program_id, c_str.as_ptr() as *const i8), value.x, value.y, value.z);
+        }
+
+        self.use_program(false);
+    }
+
+    pub fn set_uniform_vec4_i32(&self, name: &str, value: Vector4<i32>) {
+        let c_str = CString::new(name.as_bytes()).unwrap();
+
+        self.use_program(true);
+
+        unsafe {
+            gl::Uniform4i(gl::GetUniformLocation(self.program_id, c_str.as_ptr() as *const i8), value.x, value.y, value.z, value.w);
+        }
+
+        self.use_program(false);
+    }
+
+    pub fn set_uniform_vec_i32(&self, name: &str, vec: &Vec<i32>) {
+        let c_str = CString::new(name.as_bytes()).unwrap();
+
+        self.use_program(true);
+
+        unsafe {
+            gl::Uniform1iv(gl::GetUniformLocation(self.program_id, c_str.as_ptr()), vec.len() as i32, vec.as_ptr())
         }
 
         self.use_program(false);

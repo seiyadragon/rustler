@@ -22,23 +22,22 @@ struct Trinagle {
 
 impl Entity for Trinagle {
     fn init(&mut self) {
-        self.model.texture_array.push(Texture::from_file("./crate.png"));   
+        self.model.texture_array.push(Texture::from_file("./crate.png"));
+        self.model.texture_array.push(Texture::from_file("./hexagon.jpg"));
     }
 
     fn render(&mut self) {
         self.layer.clear_screen(Color::from_hex(0xff0000ff));
-        self.model.mesh.shader_program.set_uniform3f("color", Vec3::new(1.0, 1.0, 1.0));
-        self.model.rotation.y = self.rotation;
+        self.model.mesh.shader_program.set_uniform_vec3_f32("color", Color::from_hex(0xff00ff00).to_vec3());
+        self.model.rotation = Vec3::new(self.rotation, self.rotation, self.rotation);
         self.layer.render_object(&self.model);
-
-        self.rotation += 0.0005;
-        if self.rotation >= 360.0 {
-            self.rotation = 0.0;
-        }
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
-        
+        self.rotation += 0.01;
+        if self.rotation >= 360.0 {
+            self.rotation = 0.0;
+        }
     }
 
     fn exit(&mut self) {
@@ -50,7 +49,7 @@ struct Application;
 
 impl EventLoopHandler for Application {
     fn init(&self, entity_manager: &mut Box<EntityManager>) {
-        let view = View::new(Vec2::new(1280.0, 720.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
+        let view = View::new(Vec2::new(1280.0/2.0, 720.0/2.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
         let layer = GraphicsLayer::default_graphics_layer(view);
         let model = RenderableObject::new(Mesh::new_cube(), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 45.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
         let rot_tracker = 0.0;
@@ -112,5 +111,5 @@ fn main() {
 
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2).unwrap();
-    window.run(&app)
+    window.run_at_30_frames_with_ticks(&app, 120);
 }

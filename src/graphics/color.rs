@@ -1,5 +1,6 @@
 
 use glm::Vec4;
+use glm::Vec3;
 
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -28,6 +29,15 @@ impl Color {
         }
     }
 
+    pub fn from_vec3(vec: Vec3) -> Self {
+        Color {
+            r: (vec.x * 256.0) as u8,
+            g: (vec.y * 256.0) as u8,
+            b: (vec.z * 256.0) as u8,
+            a: 255,
+        }
+    }
+
     pub fn from_hex(hex: u32) -> Self {
         let (a, r, g, b) = ((hex >> 24) as u8, (hex >> 16) as u8, (hex >> 8) as u8, hex as u8);
 
@@ -36,6 +46,10 @@ impl Color {
 
     pub fn to_vec4(&self) -> Vec4 {
         Vec4::new(self.r as f32 / 256.0, self.g as f32 / 256.0, self.b as f32 / 256.0, self.a as f32 / 256.0)
+    }
+
+    pub fn to_vec3(&self) -> Vec3 {
+        Vec3::new(self.r as f32 / 256.0, self.g as f32 / 256.0, self.b as f32 / 256.0)
     }
 
     pub fn to_hex(&self) -> u32 {
