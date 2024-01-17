@@ -32,12 +32,12 @@ impl Mesh {
 
         vao.bind(false);
 
-        /*new_mesh.shader_program.set_uniform_vec_i32("sampler_objs", &vec![
+        shader_program.set_uniform_vec_i32("sampler_objs", &vec![
             00, 01, 02, 03, 04, 05, 06, 07,
             08, 09, 10, 11, 12, 13, 14, 15,
             16, 17, 18, 19, 20, 21, 22, 23,
             24, 25, 26, 27, 28, 29, 30, 31,
-        ]);*/
+        ]);
 
         Mesh {
             vao: vao,
@@ -77,7 +77,7 @@ impl Mesh {
             Vertex::new(Vec3::new(-1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
             Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
             Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
         ];
     
         let indices = [0, 1, 2, 2, 3, 0];
