@@ -1,11 +1,18 @@
+use core::slice;
+use std::ptr::null_mut;
+
 use gl::types::*;
 use glm::Vector2;
 use image::{io::Reader, DynamicImage, EncodableLayout, RgbaImage};
 
-use super::color::Color;
+use crate::ColorBuffer;
+
+use super::color::{Color, self};
 
 pub struct Texture {
     pub texture_id: GLuint,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Texture {
@@ -30,7 +37,13 @@ impl Texture {
 
         Texture {
             texture_id: texture,
+            width: size.x as u32,
+            height: size.y as u32,
         }
+    }
+
+    pub fn from_color_buffer(color_buffer: &ColorBuffer) -> Texture {
+        Texture::from_vec(Vector2::<i32>::new(color_buffer.width as i32, color_buffer.height as i32), &color_buffer.to_byte_vec())
     }
 
     pub fn from_image(image: RgbaImage) -> Self {
@@ -69,6 +82,31 @@ impl Texture {
         }
 
         Texture::from_vec(size, &binding)
+    }
+
+    pub fn get_color_buffer(&self) -> ColorBuffer {
+        let v_size = self.width * self.height * 4;
+        let data_ptr: *mut u8 = null_mut();
+        let mut data_vec = Vec::<u8>::new();
+
+        unsafe {
+            gl::GetTexImage(gl::TEXTURE_2D, 0, gl::RGBA, gl::UNSIGNED_BYTE, data_ptr as *mut std::ffi::c_void);
+
+            let data_slice = slice::from_raw_parts(data_ptr, v_size as usize);
+            data_vec = data_slice.to_vec();
+        }
+
+        ColorBuffer::from_byte_vec(self.width, self.height, data_vec)
+    }
+
+    pub fn delete(&self) -> ColorBuffer {
+        let color_buffer = self.get_color_buffer();
+
+        unsafe {
+            gl::DeleteTextures(1, &self.texture_id);
+        }
+
+        color_buffer.clone()
     }
 
 }

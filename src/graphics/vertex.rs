@@ -1,3 +1,4 @@
+use core::fmt;
 use std::ffi::{c_void, CString};
 use gl::types::*;
 use super::shader::ShaderProgram;
@@ -23,6 +24,22 @@ impl Vertex {
             bone_ids: glm::Vec3::new(0.0, 0.0, 0.0),
             bone_weights: glm::Vec3::new(0.0, 0.0, 0.0),
         }
+    }
+}
+
+impl fmt::Display for Vertex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[x: {0}, y: {1}, z: {2}, u: {3}, v: {4}, i: {5}, nx: {6}, ny: {7}, nz: {8}]",
+            self.position.x,
+            self.position.y,
+            self.position.z,
+            self.texture.x,
+            self.texture.y,
+            self.texture.z,
+            self.normals.x,
+            self.normals.y,
+            self.normals.z,
+        )
     }
 }
 
@@ -62,7 +79,6 @@ impl VAO {
     }
 
     pub fn set_vertex_attribute(&mut self, shader_program: ShaderProgram, attribute_name: &str, attribute_component_count: isize) {
-        self.bind(true);
         let c_str = CString::new(attribute_name.as_bytes()).unwrap();
     
         unsafe {
@@ -72,7 +88,12 @@ impl VAO {
         }
 
         self.component_count += attribute_component_count;
-        self.bind(false);
+    }
+
+    pub fn delete(&self) {
+        unsafe {
+            gl::DeleteVertexArrays(1, &self.id);
+        }
     }
 }
 
@@ -108,13 +129,15 @@ impl VBO {
     }
 
     pub fn add_data(&self, vertex_data: Vec<Vertex>) {
-        self.bind(true);
-
         unsafe {
             gl::BufferData(gl::ARRAY_BUFFER, isize::from(vertex_data.len() as i16)*(VERTEX_DATA_FLOATS*VERTEX_DATA_SIZE), vertex_data.as_ptr() as *const c_void, gl::STATIC_DRAW);
         }
+    }
 
-        self.bind(false);
+    pub fn delete(&self) {
+        unsafe {
+            gl::DeleteBuffers(1, &self.id);
+        }
     }
 }
 
@@ -150,12 +173,14 @@ impl IBO {
     }
 
     pub fn add_data(&self, index_data: Vec<u32>) {
-        self.bind(true);
-
         unsafe {
             gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, isize::from(index_data.len() as i16)*VERTEX_DATA_SIZE, index_data.as_ptr() as *const c_void, gl::STATIC_DRAW);
         }
+    }
 
-        self.bind(false);
+    pub fn delete(&self) {
+        unsafe {
+            gl::DeleteBuffers(1, &self.id);
+        }
     }
 }

@@ -7,7 +7,7 @@ use std::str;
 use glm::Mat4;
 
 pub const DEFAULT_VERTEX_SHADER: &str = "
-    #version 430 core
+    #version 450 core
 
     layout (location = 0) in vec3 in_position;
     layout (location = 1) in vec3 in_tex_coords;
@@ -23,7 +23,7 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
 ";
 
 pub const DEFAULT_FRAGMENT_SHADER: &str = "
-    #version 430 core
+    #version 450 core
 
     in vec3 tex_coords;
     out vec4 output_color;
@@ -67,6 +67,45 @@ impl ShaderError {
 }
 
 #[derive(Debug, Clone)]
+pub struct ShaderSource {
+    pub shader_type: ShaderType,
+    pub shader_src: String,
+}
+
+impl ShaderSource {
+    pub fn from_source_string(shader_type: ShaderType, shader_source: &str) -> ShaderSource {
+        ShaderSource { 
+            shader_type: shader_type, 
+            shader_src: String::from(shader_source),
+        }
+    }
+
+    pub fn new(shader_type: ShaderType) -> ShaderSource {
+        ShaderSource { 
+            shader_type: shader_type, 
+            shader_src: String::from("#version 450 core\n"),
+        }
+    }
+
+    pub fn default_shader_source(shader_type: ShaderType) -> ShaderSource {
+        match shader_type {
+            ShaderType::VERTEX => {
+                ShaderSource::from_source_string(ShaderType::VERTEX, DEFAULT_VERTEX_SHADER)
+            }
+            ShaderType::FRAGMENT => {
+                ShaderSource::from_source_string(ShaderType::FRAGMENT, DEFAULT_FRAGMENT_SHADER)
+            }
+            ShaderType::GEOMETRY => {
+                todo!();
+            }
+        }
+    }
+
+    pub fn compile(&self) -> Result<CompiledShader, ShaderError> {
+        CompiledShader::new(self)
+    }
+}
+#[derive(Debug, Clone)]
 pub struct CompiledShader {
     pub shader_id: GLuint,
     pub shader_type: ShaderType,
@@ -74,8 +113,10 @@ pub struct CompiledShader {
 }
 
 impl CompiledShader {
-    pub fn new(shader_type: ShaderType, shader_source: &str) -> Result<CompiledShader, ShaderError> {
-        
+    pub fn new(shader_source: &ShaderSource) -> Result<CompiledShader, ShaderError> {
+        let shader_type = shader_source.shader_type;
+        let shader_source = shader_source.shader_src.clone();
+
         unsafe {
             let shader = gl::CreateShader(shader_type as GLuint);
             let c_str = CString::new(shader_source.as_bytes()).unwrap();
@@ -108,14 +149,16 @@ impl CompiledShader {
         }
     }
 
-    pub fn delete_shader(&self) {
+    pub fn delete_shader(&self) -> ShaderSource {
         unsafe {
             gl::DeleteShader(self.shader_id);
         }
+
+        ShaderSource::from_source_string(self.shader_type, &self.shader_src.as_str())
     }
 
     pub fn default_vertex_shader() -> Result<CompiledShader, ShaderError> {
-        let result = Self::new(ShaderType::VERTEX, DEFAULT_VERTEX_SHADER);
+        let result = Self::new(&ShaderSource::default_shader_source(ShaderType::VERTEX));
 
         match result {
             Ok(compiled_shader) => {
@@ -129,7 +172,7 @@ impl CompiledShader {
     }
 
     pub fn default_fragment_shader() -> Result<CompiledShader, ShaderError> {
-        let result = Self::new(ShaderType::FRAGMENT, DEFAULT_FRAGMENT_SHADER);
+        let result = Self::new(&ShaderSource::default_shader_source(ShaderType::FRAGMENT));
 
         match result {
             Ok(compiled_shader) => {
@@ -143,10 +186,17 @@ impl CompiledShader {
     }
 }
 
+impl Drop for CompiledShader {
+    fn drop(&mut self) {
+        self.delete_shader();
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ShaderProgram {
     pub program_id: GLuint,
-    pub shader_list: Vec<CompiledShader>,
+    pub shader_list: Vec<ShaderSource>,
+    compiled_shader_list: Vec<CompiledShader>,
 }
 
 impl ShaderProgram {
@@ -157,6 +207,7 @@ impl ShaderProgram {
             ShaderProgram {
                 program_id: program,
                 shader_list: Vec::new(),
+                compiled_shader_list: Vec::new(),
             }
         }
     }
@@ -172,23 +223,25 @@ impl ShaderProgram {
     }
 
     pub fn attach_shader(&mut self, shader: CompiledShader) {
-        self.shader_list.push(shader);
+        self.compiled_shader_list.push(shader);
     }
 
-    pub fn build(&self) {
+    pub fn build(&mut self) {
         self.use_program(true);
 
         unsafe {
-            for shader in &self.shader_list {
+            for shader in &self.compiled_shader_list {
                 gl::AttachShader(self.program_id, shader.shader_id);
             }
     
             gl::LinkProgram(self.program_id);
         }
 
-        for s in &self.shader_list {
-            s.delete_shader();
+        for s in &self.compiled_shader_list {
+            self.shader_list.push(s.delete_shader());
         }
+
+        self.compiled_shader_list = Vec::new();
 
         unsafe {
             let mut status = 0;
@@ -204,8 +257,6 @@ impl ShaderProgram {
                 gl::GetProgramInfoLog(self.program_id, log_len, null_mut(), log.as_mut_ptr() as *mut GLchar);
 
                 let final_error_log = str::from_utf8(&log).unwrap();
-
-                println!("Shader Program failed to build: {final_error_log}");
             }
         }
 

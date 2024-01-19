@@ -59,13 +59,13 @@ pub struct RenderableObject {
 }
 
 impl RenderableObject {
-    pub fn new(mesh: Mesh, position: Vec3, rotation: Vec3, scale: Vec3) -> Self {
+    pub fn new(mesh: Mesh, position: &Vec3, rotation: &Vec3, scale: &Vec3) -> Self {
         RenderableObject {
             mesh: mesh,
             texture_array: Vec::new(),
-            position: position,
-            rotation: rotation,
-            scale: scale,
+            position: position.clone(),
+            rotation: rotation.clone(),
+            scale: scale.clone(),
         }
     }
 }
@@ -94,5 +94,7 @@ impl Renderable for RenderableObject {
         for i in 0..self.texture_array.len() {
             self.texture_array[i].bind(i as u32, false)
         }
+
+        self.mesh.shader_program.use_program(false);
     }
 }

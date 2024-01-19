@@ -1,6 +1,10 @@
 
 use glm::Vec4;
 use glm::Vec3;
+use image::RgbaImage;
+use image::io::Reader;
+
+use crate::Texture;
 
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -62,5 +66,77 @@ impl Color {
 impl std::fmt::Display for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Color: [r: {0}, g: {1}, b: {2}, a: {3}]", self.r, self.g, self.b, self.a)
+    }
+}
+
+#[derive(Clone)]
+pub struct ColorBuffer {
+    pub buffer: Vec<Color>,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl ColorBuffer {
+    pub fn new(width: u32, height: u32, color: &Color) -> ColorBuffer {
+        let mut color_vec = Vec::<Color>::new();
+
+        for i in 0..width*height {
+            color_vec.push(color.clone());
+        }
+
+        ColorBuffer {
+            buffer: color_vec,
+            width: width,
+            height: height,
+        }
+    }
+
+    pub fn from_byte_vec(width: u32, height: u32, byte_vec: Vec<u8>) -> ColorBuffer {
+        let mut color_vec = Vec::<Color>::new();
+
+        for i in 0..width*height {
+            color_vec.push(Color::new(byte_vec[(i * 4 + 0) as usize], byte_vec[(i * 4 + 1) as usize], byte_vec[(i * 4 + 2) as usize], byte_vec[(i * 4 + 3) as usize]));
+        }
+
+        ColorBuffer {
+            buffer: color_vec,
+            width: width,
+            height: height,
+        }
+    }
+
+    pub fn from_image(image: RgbaImage) -> Self {
+        let data_array = image.as_raw();
+        
+        Self::from_byte_vec(image.width(), image.height(), data_array.clone())
+    }
+
+    pub fn from_file(file: &str) -> Self {
+        Self::from_image(Reader::open(file).unwrap().decode().unwrap().into_rgba8())
+    }
+
+    pub fn to_byte_vec(&self) -> Vec<u8> {
+        let mut result_vec = Vec::<u8>::new();
+
+        for color in &self.buffer {
+            result_vec.push(color.r);
+            result_vec.push(color.g);
+            result_vec.push(color.b);
+            result_vec.push(color.a);
+        }
+
+        result_vec
+    }
+
+    pub fn get_color_at_pixel(&self, x: u32, y: u32) -> Color {
+        self.buffer[x as usize + y as usize * 4]
+    }
+
+    pub fn set_color_at_pixel(&mut self, x: u32, y: u32, color: &Color) {
+        self.buffer[x as usize + y as usize * 4] = color.clone();
+    }
+
+    pub fn build_texture(&self) -> Texture {
+        Texture::from_color_buffer(self)
     }
 }

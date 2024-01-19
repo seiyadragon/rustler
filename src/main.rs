@@ -11,6 +11,8 @@ use util::entity::*;
 use graphics::mesh::*;
 use image::io::Reader;
 
+use crate::graphics::mesh;
+
 mod graphics;
 mod util;
 
@@ -22,8 +24,8 @@ struct Trinagle {
 
 impl Entity for Trinagle {
     fn init(&mut self) {
-        self.model.texture_array.push(Texture::from_file("./crate.png"));
         self.model.texture_array.push(Texture::from_file("./hexagon.jpg"));
+        self.model.texture_array.push(Texture::from_file("./crate.png"));
     }
 
     fn render(&mut self) {
@@ -51,7 +53,16 @@ impl EventLoopHandler for Application {
     fn init(&self, entity_manager: &mut Box<EntityManager>) {
         let view = View::new(Vec2::new(1280.0/2.0, 720.0/2.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
         let layer = GraphicsLayer::default_graphics_layer(view);
-        let model = RenderableObject::new(Mesh::new_plane(), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 45.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
+
+        let mut built_mesh = Mesh::new_pyramid();
+
+        let mesh_data_2 = built_mesh.delete();
+        let mesh_data_2_clone = mesh_data_2.clone();
+        let shader = ShaderProgram::default_shader_program();
+
+        let built_mesh_2 = mesh_data_2.build_mesh(&shader);
+
+        let model = RenderableObject::new(built_mesh, &Vec3::new(0.0, 0.0, 5.0), &Vec3::new(0.0, 45.0, 0.0), &Vec3::new(1.0, 1.0, 1.0));
         let rot_tracker = 0.0;
 
         let triangle = Trinagle {
@@ -111,5 +122,5 @@ fn main() {
 
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2).unwrap();
-    window.run_at_30_frames_with_ticks(&app, 120);
+    window.run_at_20_ticks_with_frames(&app, 20);
 }

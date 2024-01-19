@@ -264,7 +264,7 @@ impl Window {
     }
 
     pub fn run_at_60_ticks_with_frames(mut self, loop_handler: &dyn EventLoopHandler, target_frames_per_second: u64) {
-        self.run(loop_handler, 20, target_frames_per_second);
+        self.run(loop_handler, 60, target_frames_per_second);
     }
 
     pub fn run_at_30_frames_with_ticks(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64) {
@@ -281,26 +281,6 @@ impl Window {
 
     pub fn run_at_240_frames_with_ticks(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64) {
         self.run(loop_handler, target_ticks_per_second, 240);
-    }
-
-    pub fn run_at_20_ticks_with_30_frames(mut self, loop_handler: &dyn EventLoopHandler) {
-        self.run(loop_handler, 20, 30);
-    }
-
-    pub fn run_at_20_ticks_with_60_frames(mut self, loop_handler: &dyn EventLoopHandler) {
-        self.run(loop_handler, 20, 60);
-    }
-
-    pub fn run_at_30_ticks_with_30_frames(mut self, loop_handler: &dyn EventLoopHandler) {
-        self.run(loop_handler, 30, 30);
-    }
-
-    pub fn run_at_30_ticks_with_60_frames(mut self, loop_handler: &dyn EventLoopHandler) {
-        self.run(loop_handler, 30, 60);
-    }
-
-    pub fn run_at_60_ticks_with_60_frames(mut self, loop_handler: &dyn EventLoopHandler) {
-        self.run(loop_handler, 60, 60);
     }
 
     pub fn clear_screen(color: Color) {
