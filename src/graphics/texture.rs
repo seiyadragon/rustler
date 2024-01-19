@@ -11,8 +11,6 @@ use super::color::{Color, self};
 
 pub struct Texture {
     pub texture_id: GLuint,
-    pub width: u32,
-    pub height: u32,
 }
 
 impl Texture {
@@ -37,8 +35,6 @@ impl Texture {
 
         Texture {
             texture_id: texture,
-            width: size.x as u32,
-            height: size.y as u32,
         }
     }
 
@@ -74,6 +70,32 @@ impl Texture {
         }
     }
 
+    pub fn get_width(&self) -> u32 {
+        self.bind(0, true);
+        let mut width: GLint = 0;
+
+        unsafe {
+            gl::GetTexLevelParameteriv(gl::TEXTURE_2D, 0, gl::TEXTURE_WIDTH, &mut width)
+        }
+
+        self.bind(0, false);
+
+        width as u32
+    }
+
+    pub fn get_height(&self) -> u32 {
+        self.bind(0, true);
+        let mut height: GLint = 0;
+
+        unsafe {
+            gl::GetTexLevelParameteriv(gl::TEXTURE_2D, 0, gl::TEXTURE_HEIGHT, &mut height)
+        }
+
+        self.bind(0, false);
+
+        height as u32
+    }
+
     pub fn get_sub_texture(&self, position: Vector2<i32>, size: Vector2<i32>) -> Self {
         let binding = Vec::<u8>::new();
 
@@ -85,18 +107,19 @@ impl Texture {
     }
 
     pub fn get_color_buffer(&self) -> ColorBuffer {
-        let v_size = self.width * self.height * 4;
-        let data_ptr: *mut u8 = null_mut();
-        let mut data_vec = Vec::<u8>::new();
+        self.bind(0, true);
 
-        unsafe {
-            gl::GetTexImage(gl::TEXTURE_2D, 0, gl::RGBA, gl::UNSIGNED_BYTE, data_ptr as *mut std::ffi::c_void);
+        let width = self.get_width();
+        let height = self.get_height();
 
-            let data_slice = slice::from_raw_parts(data_ptr, v_size as usize);
-            data_vec = data_slice.to_vec();
+        let mut data: Vec<u8> = Vec::with_capacity((width * height * 4) as usize);
+
+        unsafe { 
+            gl::GetTexImage(gl::TEXTURE_2D, 0, gl::RGBA, gl::UNSIGNED_BYTE, data.as_mut_ptr() as *mut std::ffi::c_void);
+            data.set_len((width * height * 4) as usize);
         }
 
-        ColorBuffer::from_byte_vec(self.width, self.height, data_vec)
+        ColorBuffer::from_byte_vec(width, height, data)
     }
 
     pub fn delete(&self) -> ColorBuffer {

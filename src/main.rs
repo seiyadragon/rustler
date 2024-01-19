@@ -24,8 +24,19 @@ struct Trinagle {
 
 impl Entity for Trinagle {
     fn init(&mut self) {
-        self.model.texture_array.push(Texture::from_file("./hexagon.jpg"));
-        self.model.texture_array.push(Texture::from_file("./crate.png"));
+        //self.model.texture_array.push(Texture::from_file("./hexagon.jpg"));
+        //self.model.texture_array.push(Texture::from_file("./crate.png"));
+
+        let color_buffer = ColorBuffer::new(512, 512, &Color::from_hex(0xffff00ff));
+        let purp = color_buffer.build_texture();
+
+        let crate_color_buffer = ColorBuffer::from_file("./crate.png");
+        let crate_tex = Texture::from_color_buffer(&crate_color_buffer);
+
+        let crate_buffer = crate_tex.delete();
+        let crate_tex_2 = crate_buffer.build_texture();
+
+        self.model.texture_array.push(crate_tex_2);
     }
 
     fn render(&mut self) {
@@ -54,7 +65,7 @@ impl EventLoopHandler for Application {
         let view = View::new(Vec2::new(1280.0/2.0, 720.0/2.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
         let layer = GraphicsLayer::default_graphics_layer(view);
 
-        let mut built_mesh = Mesh::new_pyramid();
+        let mut built_mesh = Mesh::new_square_pyramid();
 
         let mesh_data_2 = built_mesh.delete();
         let mesh_data_2_clone = mesh_data_2.clone();

@@ -1,9 +1,5 @@
-use core::fmt;
 use std::mem;
-use std::mem::size_of;
-use std::result;
 use std::slice;
-
 use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
 use gl::types::GLint;
@@ -29,6 +25,18 @@ impl MeshData {
             vertex_array: vertex_array,
             index_array: index_array,
         }
+    }
+
+    pub fn load_from_gltf(src: &str) -> Mesh {
+        //let gltf = Gltf::open(src).unwrap();
+
+        //for scene in gltf.scenes() {
+        //    for node in scene.nodes() {
+        //        
+        //    }
+        //}
+
+        MeshData::generate_polygon_data(56, 1.0).build_mesh(&ShaderProgram::default_shader_program())
     }
 
     pub fn build_mesh(self, shader_program: &ShaderProgram) -> Mesh {
@@ -271,7 +279,7 @@ impl Mesh {
         mesh_data.build_mesh(&shader_program)
     }
 
-    pub fn new_pyramid() -> Self {
+    pub fn new_triangle_pyramid() -> Self {
         let vertices = [
             // Base vertices (same as the triangle)
             Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
@@ -291,6 +299,38 @@ impl Mesh {
             0, 3, 1,
             // Right triangle
             2, 1, 3,
+        ];
+
+        let shader_program = ShaderProgram::default_shader_program();
+        let mesh_data = MeshData::new(&vertices.to_vec(), &indices.to_vec());
+
+        mesh_data.build_mesh(&shader_program)
+    }
+
+    pub fn new_square_pyramid() -> Self {
+        let vertices = [
+            // Base vertices
+            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            // Apex vertex
+            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+        ];
+
+        // Define the indices for the pyramid
+        let indices = [
+            // Base square
+            0, 1, 2,
+            2, 3, 0,
+            // Front triangle
+            0, 1, 4,
+            // Right triangle
+            1, 2, 4,
+            // Back triangle
+            2, 3, 4,
+            // Left triangle
+            3, 0, 4,
         ];
 
         let shader_program = ShaderProgram::default_shader_program();
