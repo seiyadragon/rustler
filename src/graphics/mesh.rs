@@ -5,6 +5,7 @@ use crate::graphics::shader::*;
 use gl::types::GLint;
 use glm::Vec2;
 use glm::Vec3;
+use gltf::Gltf;
 
 #[derive(Clone)]
 pub struct MeshData {
@@ -28,13 +29,13 @@ impl MeshData {
     }
 
     pub fn load_from_gltf(src: &str) -> Mesh {
-        //let gltf = Gltf::open(src).unwrap();
+        let gltf = Gltf::open(src).unwrap();
 
-        //for scene in gltf.scenes() {
-        //    for node in scene.nodes() {
-        //        
-        //    }
-        //}
+        for scene in gltf.scenes() {
+            for node in scene.nodes() {
+                
+            }
+        }
 
         MeshData::generate_polygon_data(56, 1.0).build_mesh(&ShaderProgram::default_shader_program())
     }
