@@ -28,17 +28,71 @@ impl MeshData {
         }
     }
 
-    pub fn load_from_gltf(src: &str) -> Mesh {
-        let gltf = Gltf::open(src).unwrap();
+    pub fn load_gltf(src: &str) -> MeshData { 
+        let (gltf, buffers, images) = gltf::import(src).unwrap();
 
-        for scene in gltf.scenes() {
-            for node in scene.nodes() {
-                
+        let mut vertices = Vec::<Vertex>::new();
+        let mut indices = Vec::<u32>::new();
+
+        for m in gltf.meshes() {
+            for p in m.primitives() {
+                let r = p.reader(|buffer| Some(&buffers[buffer.index()]));
+
+                if let Some(gltf::mesh::util::ReadIndices::U16(gltf::accessor::Iter::Standard(iter))) =
+                    r.read_indices()
+                {
+                    for v in iter {
+                        indices.push(v as u32);
+                    }
+                }
+
+                if let Some(iter) = r.read_positions() {
+                    for v in iter {
+                        vertices.push(Vertex::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)));
+
+                        let last_element_index = vertices.len() - 1;
+                        vertices[last_element_index].position = Vec3::new(v[0], v[1], v[2]);
+                    }
+                }
+
+                if let Some(gltf::mesh::util::ReadTexCoords::F32(gltf::accessor::Iter::Standard(iter))) =
+                    r.read_tex_coords(0)
+                {
+                    for v in iter {
+                        let last_element_index = vertices.len() - 1;
+                        vertices[last_element_index].texture = Vec3::new(v[0], v[1], 0.0);
+                    }
+                }
+
+                if let Some(iter) = r.read_normals() {
+                    for v in iter {
+                        let last_element_index = vertices.len() - 1;
+                        vertices[last_element_index].normals = Vec3::new(v[0], v[1], v[2]);
+                    }
+                }
+
+                if let Some(gltf::mesh::util::ReadJoints::U8(gltf::accessor::Iter::Standard(iter))) =
+                    r.read_joints(0)
+                {
+                    for v in iter {
+                        let last_element_index = vertices.len() - 1;
+                        vertices[last_element_index].bone_ids = Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32);
+                    }
+                }
+
+                if let Some(gltf::mesh::util::ReadWeights::F32(gltf::accessor::Iter::Standard(iter))) =
+                    r.read_weights(0)
+                {
+                    for v in iter {
+                        let last_element_index = vertices.len() - 1;
+                        vertices[last_element_index].bone_weights = Vec3::new(v[0], v[1], v[2]);
+                    }
+                }
             }
         }
 
-        MeshData::generate_polygon_data(56, 1.0).build_mesh(&ShaderProgram::default_shader_program())
-    }
+        MeshData::new(&vertices, &indices)
+    }    
 
     pub fn build_mesh(self, shader_program: &ShaderProgram) -> Mesh {
         Mesh::new(&self, shader_program)
@@ -201,6 +255,10 @@ impl Mesh {
         self.vao.delete();
         
         result_data.clone()
+    }
+
+    pub fn from_gltf(src: &str, shader: &ShaderProgram) -> Mesh {
+        MeshData::load_gltf(src).build_mesh(shader)
     }
 
     pub fn new_triangle() -> Self {
