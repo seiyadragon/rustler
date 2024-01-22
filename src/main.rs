@@ -6,10 +6,8 @@ use graphics::view::*;
 use graphics::window::*;
 use graphics::shader::*;
 use graphics::texture::*;
-use graphics::vertex::*;
 use util::entity::*;
 use graphics::mesh::*;
-use image::io::Reader;
 
 use crate::graphics::mesh;
 
@@ -65,7 +63,7 @@ impl EventLoopHandler for Application {
         let view = View::new(Vec2::new(1280.0/2.0, 720.0/2.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
         let layer = GraphicsLayer::default_graphics_layer(view);
 
-        let mut built_mesh = Mesh::new_cube();
+        let mut built_mesh = MeshData::load_blender_mesh("./BASEmodel.blend", true).build_mesh(&ShaderProgram::default_shader_program());
 
         let mesh_data_2 = built_mesh.delete();
         let mesh_data_2_clone = mesh_data_2.clone();
@@ -133,5 +131,6 @@ fn main() {
 
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2).unwrap();
-    window.run_at_20_ticks_with_frames(&app, 20);
+    //window.run_at_20_ticks_with_frames(&app, 20);
+    window.run_at_20_ticks_with_frames(&app, 2000);
 }

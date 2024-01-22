@@ -5,7 +5,14 @@ use crate::graphics::shader::*;
 use gl::types::GLint;
 use glm::Vec2;
 use glm::Vec3;
-use gltf::Gltf;
+use blend::Blend;
+use libflate::gzip::Decoder;
+use std::{
+    env,
+    fs::File,
+    io::{self, BufWriter, Read, Write},
+    path::{self, PathBuf},
+};
 
 #[derive(Clone)]
 pub struct MeshData {
@@ -28,74 +35,219 @@ impl MeshData {
         }
     }
 
-    pub fn load_gltf(src: &str) -> MeshData { 
-        let (gltf, buffers, images) = gltf::import(src).unwrap();
+    pub fn build_mesh(self, shader_program: &ShaderProgram) -> Mesh {
+        Mesh::new(&self, shader_program)
+    }
 
-        let mut vertices = Vec::<Vertex>::new();
-        let mut indices = Vec::<u32>::new();
+    pub fn load_blender_mesh(path: &str, compressed: bool) -> MeshData {
+        let mut blend = Blend::from_path(path);
 
-        for m in gltf.meshes() {
-            for p in m.primitives() {
-                let r = p.reader(|buffer| Some(&buffers[buffer.index()]));
+        let mut vertices: Vec<Vertex> = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
 
-                if let Some(gltf::mesh::util::ReadIndices::U16(gltf::accessor::Iter::Standard(iter))) =
-                    r.read_indices()
-                {
-                    for v in iter {
-                        indices.push(v as u32);
+        if compressed {
+            let mut file = File::open(path).unwrap();
+            let mut data = Vec::new();
+            file.read_to_end(&mut data).unwrap();
+
+            if data[0..7] != *b"BLENDER" {
+                let mut decoder = Decoder::new(&data[..]).unwrap();
+                let mut gzip_data = Vec::new();
+                decoder.read_to_end(&mut gzip_data).unwrap();
+            
+                data = gzip_data;
+            }
+
+            blend = Blend::new(&data[..]);
+        }
+
+        let unwrapped_blend = blend.unwrap();
+
+        for obj in unwrapped_blend.instances_with_code(*b"OB") {
+            if obj.is_valid("data") && obj.get("data").code()[0..=1] == *b"ME" {
+                let mesh = obj.get("data");
+                let faces = mesh.get_iter("mpoly").collect::<Vec<_>>();
+                let loops = mesh.get_iter("mloop").collect::<Vec<_>>();
+                let uvs = mesh.get_iter("mloopuv").collect::<Vec<_>>();
+                let verts = mesh.get_iter("mvert").collect::<Vec<_>>();
+                //let materials = mesh.get_iter("material").collect::<Vec<_>>();
+
+                // Iterate through faces and get indices
+                for face in faces {
+                    let start = face.get_u32("loopstart") as usize;
+                    let count = face.get_u32("totloop") as usize;
+
+                    if count > 0 {
+                        // Extract face indices
+                        let face_indices = &loops[start..start + count];
+                        indices.extend(face_indices.iter().map(|index| index.get_u32("v")));
                     }
                 }
 
-                if let Some(iter) = r.read_positions() {
-                    for v in iter {
-                        vertices.push(Vertex::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)));
+                // Now "indices" contains the face indices for the current mesh
+                println!("Face Indices: {:?}", indices);
 
-                        let last_element_index = vertices.len() - 1;
-                        vertices[last_element_index].position = Vec3::new(v[0], v[1], v[2]);
-                    }
-                }
+                for i in 0..loops.len() {
+                    let loop_data = &loops[i];
+                    let uv_data = &uvs[i];
+                    let vert_data = &verts[loop_data.get_u32("v") as usize];
+    
+                    let position = Vec3 {
+                        x: vert_data.get_f32_vec("co")[0],
+                        y: vert_data.get_f32_vec("co")[1],
+                        z: vert_data.get_f32_vec("co")[2],
+                    };
+                    
+                    //let material_index = loop_data.get_u32("mat_nr") as usize;
+                    //let texture_id = materials
+                    //    .get(material_index)
+                    //    .map(|material| material.get_u32("mtex") as u32)
+                    //    .unwrap();
 
-                if let Some(gltf::mesh::util::ReadTexCoords::F32(gltf::accessor::Iter::Standard(iter))) =
-                    r.read_tex_coords(0)
-                {
-                    for v in iter {
-                        let last_element_index = vertices.len() - 1;
-                        vertices[last_element_index].texture = Vec3::new(v[0], v[1], 0.0);
-                    }
-                }
+                    //let texture_uv = Vec3 {
+                    //    x: uv_data.get_f32("uv"),
+                    //    y: uv_data.get_f32("uv"),
+                    //    z: texture_id as f32,
+                    //};
 
-                if let Some(iter) = r.read_normals() {
-                    for v in iter {
-                        let last_element_index = vertices.len() - 1;
-                        vertices[last_element_index].normals = Vec3::new(v[0], v[1], v[2]);
-                    }
-                }
+                    let texture_uv = Vec3 {
+                        x: uv_data.get_f32_vec("uv")[0],
+                        y: uv_data.get_f32_vec("uv")[1],
+                        z: 0.0,
+                    };
+    
+                    let normals = Vec3 {
+                        x: vert_data.get_i16_vec("no")[0] as f32,
+                        y: vert_data.get_i16_vec("no")[1] as f32,
+                        z: vert_data.get_i16_vec("no")[2] as f32,
+                    };
 
-                if let Some(gltf::mesh::util::ReadJoints::U8(gltf::accessor::Iter::Standard(iter))) =
-                    r.read_joints(0)
-                {
-                    for v in iter {
-                        let last_element_index = vertices.len() - 1;
-                        vertices[last_element_index].bone_ids = Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32);
-                    }
-                }
+                    //TODO: Load bone information for the mesh from the blend file.
 
-                if let Some(gltf::mesh::util::ReadWeights::F32(gltf::accessor::Iter::Standard(iter))) =
-                    r.read_weights(0)
-                {
-                    for v in iter {
-                        let last_element_index = vertices.len() - 1;
-                        vertices[last_element_index].bone_weights = Vec3::new(v[0], v[1], v[2]);
-                    }
+                    vertices.push(Vertex::new(position, texture_uv, normals));
                 }
             }
         }
 
         MeshData::new(&vertices, &indices)
-    }    
+    }
 
-    pub fn build_mesh(self, shader_program: &ShaderProgram) -> Mesh {
-        Mesh::new(&self, shader_program)
+    pub fn generate_triangle_data() -> MeshData {
+        let vertices = [
+            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+		    Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+		    Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+        ];
+
+        let indices = [0, 1, 2];
+
+        MeshData::new(&vertices.to_vec(), &indices.to_vec())
+    }
+
+    pub fn generate_plane_data() -> MeshData {
+        let vertices = [
+            Vertex::new(Vec3::new(-1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+        ];
+    
+        let indices = [0, 1, 2, 2, 3, 0];
+
+        MeshData::new(&vertices.to_vec(), &indices.to_vec())
+    }
+
+    pub fn generate_cube_data() -> MeshData {
+        let vertices = [
+            // Front face
+            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 0
+            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.25, 0.0, 0.0)), // 1
+            Vertex::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.25, 0.25, 0.0)), // 2
+            Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.25, 0.0)), // 3
+
+            // Back face
+            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0)), // 4
+            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.75, 0.0, 0.0)), // 5
+            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.75, 0.25, 0.0)), // 6
+            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.25, 0.0)), // 7
+        ];
+
+        let indices = [
+            // Front face
+            0, 1, 2, // First triangle
+            2, 3, 0, // Second triangle
+            // Back face
+            4, 5, 6, // First triangle
+            6, 7, 4, // Second triangle
+            // Right face
+            1, 5, 6, // First triangle
+            6, 2, 1, // Second triangle
+            // Left face
+            0, 4, 7, // First triangle
+            7, 3, 0, // Second triangle
+            // Top face
+            3, 7, 6, // First triangle
+            6, 2, 3, // Second triangle
+            // Bottom face
+            0, 1, 5, // First triangle
+            5, 4, 0, // Second triangle
+        ];
+
+        MeshData::new(&vertices.to_vec(), &indices.to_vec())
+    }
+
+    pub fn generate_triangle_pyramid_data() -> MeshData {
+        let vertices = [
+            // Base vertices (same as the triangle)
+            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            // Apex vertex
+            Vertex::new(Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+        ];
+
+        // Define the indices for the pyramid
+        let indices = [
+            // Base triangle (same as the triangle)
+            0, 1, 2,
+            // Front triangle
+            0, 2, 3,
+            // Left triangle
+            0, 3, 1,
+            // Right triangle
+            2, 1, 3,
+        ];
+
+        MeshData::new(&vertices.to_vec(), &indices.to_vec())
+    }
+
+    pub fn generate_square_pyramid_data() -> MeshData {
+        let vertices = [
+            // Base vertices
+            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            // Apex vertex
+            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+        ];
+
+        // Define the indices for the pyramid
+        let indices = [
+            // Base square
+            0, 1, 2,
+            2, 3, 0,
+            // Front triangle
+            0, 1, 4,
+            // Right triangle
+            1, 2, 4,
+            // Back triangle
+            2, 3, 4,
+            // Left triangle
+            3, 0, 4,
+        ];
+
+        MeshData::new(&vertices.to_vec(), &indices.to_vec())
     }
 
     pub fn calculate_cylindrical_projection(x: f32, y: f32, z: f32, r: f32) -> Vec2 {
@@ -257,144 +409,27 @@ impl Mesh {
         result_data.clone()
     }
 
-    pub fn from_gltf(src: &str, shader: &ShaderProgram) -> Mesh {
-        MeshData::load_gltf(src).build_mesh(shader)
-    }
-
     pub fn new_triangle() -> Self {
-        let vertices = [
-            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-		    Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-		    Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-        ];
-
-        let indices = [0, 1, 2];
-        let shader_program = ShaderProgram::default_shader_program();
-        let mesh_data = MeshData::new(&vertices.to_vec(), &indices.to_vec());
-
-        mesh_data.build_mesh(&shader_program)
+        MeshData::generate_triangle_data().build_mesh(&ShaderProgram::default_shader_program())
     }
 
     pub fn new_plane() -> Self {
-        let vertices = [
-            Vertex::new(Vec3::new(-1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-        ];
-    
-        let indices = [0, 1, 2, 2, 3, 0];
-        let shader_program = ShaderProgram::default_shader_program();
-        let mesh_data = MeshData::new(&vertices.to_vec(), &indices.to_vec());
-
-        mesh_data.build_mesh(&shader_program)
+        MeshData::generate_plane_data().build_mesh(&ShaderProgram::default_shader_program())
     }
 
     pub fn new_polygon(sides: usize) -> Self {
-        let shader_program = ShaderProgram::default_shader_program();
-
-        MeshData::generate_polygon_data(sides, 1.0).build_mesh(&shader_program)
+        MeshData::generate_polygon_data(sides, 1.0).build_mesh(&ShaderProgram::default_shader_program())
     }
 
     pub fn new_cube() -> Self {
-        let vertices = [
-            // Front face
-            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 0
-            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.25, 0.0, 0.0)), // 1
-            Vertex::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.25, 0.25, 0.0)), // 2
-            Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.25, 0.0)), // 3
-
-            // Back face
-            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0)), // 4
-            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.75, 0.0, 0.0)), // 5
-            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.75, 0.25, 0.0)), // 6
-            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.25, 0.0)), // 7
-        ];
-
-        let indices = [
-            // Front face
-            0, 1, 2, // First triangle
-            2, 3, 0, // Second triangle
-            // Back face
-            4, 5, 6, // First triangle
-            6, 7, 4, // Second triangle
-            // Right face
-            1, 5, 6, // First triangle
-            6, 2, 1, // Second triangle
-            // Left face
-            0, 4, 7, // First triangle
-            7, 3, 0, // Second triangle
-            // Top face
-            3, 7, 6, // First triangle
-            6, 2, 3, // Second triangle
-            // Bottom face
-            0, 1, 5, // First triangle
-            5, 4, 0, // Second triangle
-        ];
-
-        let shader_program = ShaderProgram::default_shader_program();
-        let mesh_data = MeshData::new(&vertices.to_vec(), &indices.to_vec());
-
-        mesh_data.build_mesh(&shader_program)
+        MeshData::generate_cube_data().build_mesh(&ShaderProgram::default_shader_program())
     }
 
     pub fn new_triangle_pyramid() -> Self {
-        let vertices = [
-            // Base vertices (same as the triangle)
-            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            // Apex vertex
-            Vertex::new(Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-        ];
-
-        // Define the indices for the pyramid
-        let indices = [
-            // Base triangle (same as the triangle)
-            0, 1, 2,
-            // Front triangle
-            0, 2, 3,
-            // Left triangle
-            0, 3, 1,
-            // Right triangle
-            2, 1, 3,
-        ];
-
-        let shader_program = ShaderProgram::default_shader_program();
-        let mesh_data = MeshData::new(&vertices.to_vec(), &indices.to_vec());
-
-        mesh_data.build_mesh(&shader_program)
+        MeshData::generate_triangle_pyramid_data().build_mesh(&ShaderProgram::default_shader_program())
     }
 
     pub fn new_square_pyramid() -> Self {
-        let vertices = [
-            // Base vertices
-            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            // Apex vertex
-            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-        ];
-
-        // Define the indices for the pyramid
-        let indices = [
-            // Base square
-            0, 1, 2,
-            2, 3, 0,
-            // Front triangle
-            0, 1, 4,
-            // Right triangle
-            1, 2, 4,
-            // Back triangle
-            2, 3, 4,
-            // Left triangle
-            3, 0, 4,
-        ];
-
-        let shader_program = ShaderProgram::default_shader_program();
-        let mesh_data = MeshData::new(&vertices.to_vec(), &indices.to_vec());
-
-        mesh_data.build_mesh(&shader_program)
+        MeshData::generate_square_pyramid_data().build_mesh(&ShaderProgram::default_shader_program())
     }
 }
