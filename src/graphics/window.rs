@@ -154,7 +154,7 @@ impl Window {
                         gl::DepthFunc(gl::LESS);
 
                         gl::Enable(gl::CULL_FACE);
-                        gl::CullFace(gl::FRONT);
+                        gl::CullFace(gl::BACK);
                     }
 
                     loop_handler.init(&mut self.entity_manager);

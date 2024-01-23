@@ -18,6 +18,7 @@ struct Trinagle {
     model: RenderableObject,
     layer: GraphicsLayer,
     rotation: f32,
+    model2: RenderableObject,
 }
 
 impl Entity for Trinagle {
@@ -28,7 +29,7 @@ impl Entity for Trinagle {
         let color_buffer = ColorBuffer::new(512, 512, &Color::from_hex(0xffff00ff));
         let purp = color_buffer.build_texture();
 
-        let crate_color_buffer = ColorBuffer::from_file("./crate.png");
+        let crate_color_buffer = ColorBuffer::from_file("./hexagon.jpg");
         let crate_tex = Texture::from_color_buffer(&crate_color_buffer);
 
         let crate_buffer = crate_tex.delete();
@@ -41,6 +42,7 @@ impl Entity for Trinagle {
         self.layer.clear_screen(Color::from_hex(0xff0000ff));
         self.model.mesh.shader_program.set_uniform_vec3_f32("color", Color::from_hex(0xffffffff).to_vec3());
         self.layer.render_object(&self.model);
+        self.layer.render_object(&self.model2);
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
@@ -49,6 +51,7 @@ impl Entity for Trinagle {
             self.rotation = 0.0;
         }
         self.model.rotation = Vec3::new(self.rotation, self.rotation, self.rotation);
+        self.model2.rotation = Vec3::new(self.rotation, self.rotation, self.rotation);
     }
 
     fn exit(&mut self) {
@@ -63,20 +66,17 @@ impl EventLoopHandler for Application {
         let view = View::new(Vec2::new(1280.0/2.0, 720.0/2.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), 45.0);
         let layer = GraphicsLayer::default_graphics_layer(view);
 
-        let mut built_mesh = MeshData::load_blender_mesh("./BASEmodel.blend", true).build_mesh(&ShaderProgram::default_shader_program());
+        let mut built_mesh = MeshData::generate_from_collada("./cube.dae").build_mesh(&ShaderProgram::default_shader_program());
 
-        let mesh_data_2 = built_mesh.delete();
-        let mesh_data_2_clone = mesh_data_2.clone();
-        let shader = ShaderProgram::default_shader_program();
-
-        let built_mesh_2 = mesh_data_2.build_mesh(&shader);
-
-        let model = RenderableObject::new(built_mesh, &Vec3::new(0.0, 0.0, 5.0), &Vec3::new(0.0, 45.0, 0.0), &Vec3::new(1.0, 1.0, 1.0));
+        let model = RenderableObject::new(built_mesh, &Vec3::new(0.0, 0.0, 10.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(1.0, 1.0, 1.0));
         let rot_tracker = 0.0;
+
+        let model2 = RenderableObject::new(Mesh::new_cube(), &Vec3::new(3.0, 0.0, 10.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(1.0, 1.0, 1.0));
 
         let triangle = Trinagle {
             layer: layer,
             model: model,
+            model2: model2,
             rotation: rot_tracker,
         };
 
@@ -131,6 +131,6 @@ fn main() {
 
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2).unwrap();
-    //window.run_at_20_ticks_with_frames(&app, 20);
-    window.run_at_20_ticks_with_frames(&app, 2000);
+    window.run_at_20_ticks_with_frames(&app, 20);
+    //window.run_at_20_ticks_with_frames(&app, 2000);
 }

@@ -1,18 +1,14 @@
 use std::mem;
 use std::slice;
+use std::str::FromStr;
 use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
 use gl::types::GLint;
 use glm::Vec2;
 use glm::Vec3;
-use blend::Blend;
-use libflate::gzip::Decoder;
-use std::{
-    env,
-    fs::File,
-    io::{self, BufWriter, Read, Write},
-    path::{self, PathBuf},
-};
+use dae_parser::*;
+
+use super::vertex;
 
 #[derive(Clone)]
 pub struct MeshData {
@@ -39,94 +35,103 @@ impl MeshData {
         Mesh::new(&self, shader_program)
     }
 
-    pub fn load_blender_mesh(path: &str, compressed: bool) -> MeshData {
-        let mut blend = Blend::from_path(path);
-
+    pub fn generate_from_collada(path: &str) -> MeshData {
+        let doc = Document::from_file(path).unwrap();
+        
         let mut vertices: Vec<Vertex> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
 
-        if compressed {
-            let mut file = File::open(path).unwrap();
-            let mut data = Vec::new();
-            file.read_to_end(&mut data).unwrap();
-
-            if data[0..7] != *b"BLENDER" {
-                let mut decoder = Decoder::new(&data[..]).unwrap();
-                let mut gzip_data = Vec::new();
-                decoder.read_to_end(&mut gzip_data).unwrap();
+        for geometry in doc.iter::<Geometry>() {
+            let mesh = geometry.element.as_mesh().unwrap();
             
-                data = gzip_data;
-            }
+            for source in &mesh.sources {
+                if source.id.clone().unwrap().contains("mesh-positions") {
+                    let positions = source.array.clone().unwrap();
 
-            blend = Blend::new(&data[..]);
-        }
+                    match positions {
+                        ArrayElement::Float(positions) => {
+                            for i in 0..positions.len() / 3 {
+                                let x = positions[i * 3];
+                                let y = positions[i * 3 + 1];
+                                let z = positions[i * 3 + 2];
 
-        let unwrapped_blend = blend.unwrap();
-
-        for obj in unwrapped_blend.instances_with_code(*b"OB") {
-            if obj.is_valid("data") && obj.get("data").code()[0..=1] == *b"ME" {
-                let mesh = obj.get("data");
-                let faces = mesh.get_iter("mpoly").collect::<Vec<_>>();
-                let loops = mesh.get_iter("mloop").collect::<Vec<_>>();
-                let uvs = mesh.get_iter("mloopuv").collect::<Vec<_>>();
-                let verts = mesh.get_iter("mvert").collect::<Vec<_>>();
-                //let materials = mesh.get_iter("material").collect::<Vec<_>>();
-
-                // Iterate through faces and get indices
-                for face in faces {
-                    let start = face.get_u32("loopstart") as usize;
-                    let count = face.get_u32("totloop") as usize;
-
-                    if count > 0 {
-                        // Extract face indices
-                        let face_indices = &loops[start..start + count];
-                        indices.extend(face_indices.iter().map(|index| index.get_u32("v")));
+                                vertices.push(Vertex::new(Vec3::new(x, y, z), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)));
+                            }
+                        },
+                        _ => {},
                     }
                 }
 
-                // Now "indices" contains the face indices for the current mesh
-                println!("Face Indices: {:?}", indices);
+                /*if source.id.clone().unwrap().contains("mesh-normals") {
+                    let normals = source.array.clone().unwrap();
 
-                for i in 0..loops.len() {
-                    let loop_data = &loops[i];
-                    let uv_data = &uvs[i];
-                    let vert_data = &verts[loop_data.get_u32("v") as usize];
-    
-                    let position = Vec3 {
-                        x: vert_data.get_f32_vec("co")[0],
-                        y: vert_data.get_f32_vec("co")[1],
-                        z: vert_data.get_f32_vec("co")[2],
-                    };
-                    
-                    //let material_index = loop_data.get_u32("mat_nr") as usize;
-                    //let texture_id = materials
-                    //    .get(material_index)
-                    //    .map(|material| material.get_u32("mtex") as u32)
-                    //    .unwrap();
+                    match normals {
+                        ArrayElement::Float(normals) => {
+                            for i in 0..vertices.len() / 3 {
+                                let x = normals[i * 3];
+                                let y = normals[i * 3 + 1];
+                                let z = normals[i * 3 + 2];
 
-                    //let texture_uv = Vec3 {
-                    //    x: uv_data.get_f32("uv"),
-                    //    y: uv_data.get_f32("uv"),
-                    //    z: texture_id as f32,
-                    //};
+                                vertices[i].normals = Vec3::new(x, y, z);
+                            }
+                        },
+                        _ => {},
+                    }
+                }*/
 
-                    let texture_uv = Vec3 {
-                        x: uv_data.get_f32_vec("uv")[0],
-                        y: uv_data.get_f32_vec("uv")[1],
-                        z: 0.0,
-                    };
-    
-                    let normals = Vec3 {
-                        x: vert_data.get_i16_vec("no")[0] as f32,
-                        y: vert_data.get_i16_vec("no")[1] as f32,
-                        z: vert_data.get_i16_vec("no")[2] as f32,
-                    };
+                if source.id.clone().unwrap().contains("mesh-map") {
+                    let tex_coords = source.array.clone().unwrap();
 
-                    //TODO: Load bone information for the mesh from the blend file.
+                    match tex_coords {
+                        ArrayElement::Float(tex_coords) => {
+                            for i in 0..vertices.len() / 2 {
+                                let u = tex_coords[i * 2];
+                                let v = tex_coords[i * 2 + 1];
 
-                    vertices.push(Vertex::new(position, texture_uv, normals));
+                                vertices[i].texture = Vec3::new(u, v, 0.0);
+                            }
+                        },
+                        _ => {},
+                    }
                 }
             }
+
+            for element in &mesh.elements {
+                let poly_list_opt = element.as_polylist();
+                let triangles_opt = element.as_triangles();
+
+                if poly_list_opt.is_some() {
+                    let poly_list = poly_list_opt.unwrap();
+                    let poly_count = poly_list.count;
+                    let vcount = poly_list.data.clone().vcount[0] as usize;
+                    let primitives = poly_list.data.clone().prim;
+                    let prim_vec = primitives.to_vec();
+
+                    for i in (0..prim_vec.len()).step_by(vcount) {
+                        indices.push(prim_vec[i]);
+                    }
+                }
+
+                else if triangles_opt.is_some() {
+                    let triangles = triangles_opt.unwrap();
+                    let triangles_count = triangles.count;
+                    let vcount = 3;
+                    let primitives = triangles.data.clone().prim.unwrap();
+                    let prim_vec = primitives.to_vec();
+
+                    for i in (0..prim_vec.len()).step_by(vcount) {
+                        indices.push(prim_vec[i]);
+                    }
+                }
+            }
+        }
+
+        for vertex in &vertices {
+            println!("{}", vertex);
+        }
+
+        for index in &indices {
+            println!("{}", index);
         }
 
         MeshData::new(&vertices, &indices)
@@ -160,37 +165,37 @@ impl MeshData {
     pub fn generate_cube_data() -> MeshData {
         let vertices = [
             // Front face
-            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 0
-            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.25, 0.0, 0.0)), // 1
-            Vertex::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.25, 0.25, 0.0)), // 2
-            Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.25, 0.0)), // 3
+            Vertex::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 0
+            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.25, 0.0, 0.0)), // 1
+            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.25, 0.25, 0.0)), // 2
+            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.25, 0.0)), // 3
 
             // Back face
-            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0)), // 4
-            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.75, 0.0, 0.0)), // 5
-            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.75, 0.25, 0.0)), // 6
-            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.25, 0.0)), // 7
+            Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0)), // 4
+            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.75, 0.0, 0.0)), // 5
+            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.75, 0.25, 0.0)), // 6
+            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.25, 0.0)), // 7
         ];
 
         let indices = [
             // Front face
-            0, 1, 2, // First triangle
-            2, 3, 0, // Second triangle
+            4, 2, 0, // First triangle
+            2, 7, 3, // Second triangle
             // Back face
-            4, 5, 6, // First triangle
-            6, 7, 4, // Second triangle
+            6, 5, 7, // First triangle
+            1, 7, 5, // Second triangle
             // Right face
-            1, 5, 6, // First triangle
-            6, 2, 1, // Second triangle
+            0, 3, 1, // First triangle
+            4, 1, 5, // Second triangle
             // Left face
-            0, 4, 7, // First triangle
-            7, 3, 0, // Second triangle
+            4, 6, 2, // First triangle
+            2, 6, 7, // Second triangle
             // Top face
-            3, 7, 6, // First triangle
-            6, 2, 3, // Second triangle
+            6, 4, 5, // First triangle
+            1, 3, 7, // Second triangle
             // Bottom face
-            0, 1, 5, // First triangle
-            5, 4, 0, // Second triangle
+            0, 2, 3, // First triangle
+            4, 0, 1, // Second triangle
         ];
 
         MeshData::new(&vertices.to_vec(), &indices.to_vec())
