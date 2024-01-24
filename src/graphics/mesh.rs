@@ -1,4 +1,5 @@
 use std::mem;
+use std::path;
 use std::slice;
 use std::str::FromStr;
 use crate::graphics::vertex::*;
@@ -8,6 +9,7 @@ use glm::Vec2;
 use glm::Vec3;
 use dae_parser::*;
 
+use super::texture;
 use super::vertex;
 
 #[derive(Clone)]
@@ -39,13 +41,21 @@ impl MeshData {
         let doc = Document::from_file(path).unwrap();
         
         let mut vertices: Vec<Vertex> = Vec::new();
+        let mut normal_array: Vec<Vec3> = Vec::new();
+        let mut texture_array: Vec<Vec2> = Vec::new();
+        let mut color_array: Vec<Vec3> = Vec::new();
+
         let mut indices: Vec<u32> = Vec::new();
+        let mut normal_indices: Vec<u32> = Vec::new();
+        let mut texture_indices: Vec<u32> = Vec::new();
+        let mut color_indices: Vec<u32> = Vec::new();
+
 
         for geometry in doc.iter::<Geometry>() {
             let mesh = geometry.element.as_mesh().unwrap();
             
             for source in &mesh.sources {
-                if source.id.clone().unwrap().contains("mesh-positions") {
+                if source.id.clone().unwrap().contains("positions") {
                     let positions = source.array.clone().unwrap();
 
                     match positions {
@@ -62,33 +72,50 @@ impl MeshData {
                     }
                 }
 
-                /*if source.id.clone().unwrap().contains("mesh-normals") {
+                if source.id.clone().unwrap().contains("normals") {
                     let normals = source.array.clone().unwrap();
 
                     match normals {
                         ArrayElement::Float(normals) => {
-                            for i in 0..vertices.len() / 3 {
+                            for i in 0..normals.len() / 3{
                                 let x = normals[i * 3];
                                 let y = normals[i * 3 + 1];
                                 let z = normals[i * 3 + 2];
 
-                                vertices[i].normals = Vec3::new(x, y, z);
+                                normal_array.push(Vec3::new(x, y, z));
                             }
                         },
                         _ => {},
                     }
-                }*/
+                }
 
-                if source.id.clone().unwrap().contains("mesh-map") {
+                if source.id.clone().unwrap().contains("map") {
                     let tex_coords = source.array.clone().unwrap();
 
                     match tex_coords {
                         ArrayElement::Float(tex_coords) => {
-                            for i in 0..vertices.len() / 2 {
+                            for i in 0..tex_coords.len() / 2 {
                                 let u = tex_coords[i * 2];
                                 let v = tex_coords[i * 2 + 1];
 
-                                vertices[i].texture = Vec3::new(u, v, 0.0);
+                                texture_array.push(Vec2::new(u, v));
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+
+                if source.id.clone().unwrap().contains("color") {
+                    let colors = source.array.clone().unwrap();
+
+                    match colors {
+                        ArrayElement::Float(colors) => {
+                            for i in 0..colors.len() / 3 {
+                                let r = colors[i * 3];
+                                let g = colors[i * 3 + 1];
+                                let b = colors[i * 3 + 2];
+
+                                color_array.push(Vec3::new(r, g, b));
                             }
                         },
                         _ => {},
@@ -102,36 +129,116 @@ impl MeshData {
 
                 if poly_list_opt.is_some() {
                     let poly_list = poly_list_opt.unwrap();
-                    let poly_count = poly_list.count;
-                    let vcount = poly_list.data.clone().vcount[0] as usize;
                     let primitives = poly_list.data.clone().prim;
                     let prim_vec = primitives.to_vec();
+                    let inputs = poly_list.inputs.clone();
+                    let mut stride = 3 as usize;
+                    let mut normal_offset = 1 as usize;
+                    let mut texture_offset = 2 as usize;
+                    let mut color_offset = 3 as usize;
 
-                    for i in (0..prim_vec.len()).step_by(vcount) {
+                    let mut max_offset = stride - 1;
+                    for input in inputs.iter() {
+                        let offset = input.offset as usize;
+                        let semantic = input.semantic.clone().to_string();
+
+                        if semantic == "NORMAL" {
+                            normal_offset = offset;
+                        }
+
+                        if semantic == "TEXCOORD" {
+                            texture_offset = offset;
+                        }
+
+                        if semantic == "COLOR" {
+                            color_offset = offset;
+                        }
+
+                        if offset > max_offset {
+                            max_offset = offset;
+                        }
+                    }
+
+                    stride = max_offset + 1;
+                    
+                    for i in (0..prim_vec.len()).step_by(stride) {
                         indices.push(prim_vec[i]);
+                        normal_indices.push(prim_vec[i + normal_offset]);
+                        texture_indices.push(prim_vec[i + texture_offset]);
+
+                        if stride > 3 {
+                            color_indices.push(prim_vec[i + color_offset]);
+                        }
                     }
                 }
 
                 else if triangles_opt.is_some() {
                     let triangles = triangles_opt.unwrap();
-                    let triangles_count = triangles.count;
-                    let vcount = 3;
                     let primitives = triangles.data.clone().prim.unwrap();
                     let prim_vec = primitives.to_vec();
+                    let inputs = triangles.inputs.clone();
+                    let mut stride = 3 as usize;
+                    let mut normal_offset = 1 as usize;
+                    let mut texture_offset = 2 as usize;
+                    let mut color_offset = 3 as usize;
 
-                    for i in (0..prim_vec.len()).step_by(vcount) {
+                    let mut max_offset = stride - 1;
+                    for input in inputs.iter() {
+                        let offset = input.offset as usize;
+                        let semantic = input.semantic.clone().to_string();
+
+                        if semantic == "NORMAL" {
+                            normal_offset = offset;
+                        }
+
+                        if semantic == "TEXCOORD" {
+                            texture_offset = offset;
+                        }
+
+                        if semantic == "COLOR" {
+                            color_offset = offset;
+                        }
+
+                        if offset > max_offset {
+                            max_offset = offset;
+                        }
+
+                        if offset > max_offset {
+                            max_offset = offset;
+                        }
+                    }
+
+                    stride = max_offset + 1;
+
+                    for i in (0..prim_vec.len()).step_by(stride) {
                         indices.push(prim_vec[i]);
+                        normal_indices.push(prim_vec[i + normal_offset]);
+                        texture_indices.push(prim_vec[i + texture_offset]);
+
+                        if stride > 3 {
+                            color_indices.push(prim_vec[i + color_offset]);
+                        }
                     }
                 }
             }
         }
 
-        for vertex in &vertices {
-            println!("{}", vertex);
-        }
+        for i in 0..indices.len() {
+            let vertex_index = indices[i] as usize;
+            let normal_index = normal_indices[i] as usize;
+            let texture_index = texture_indices[i] as usize;
+            let color_index = color_indices[i] as usize;
 
-        for index in &indices {
-            println!("{}", index);
+            let mut vertex = vertices[vertex_index].clone();
+            let normal = normal_array[normal_index].clone();
+            let texture = texture_array[texture_index].clone();
+            let color = color_array[color_index].clone();
+
+            vertex.normals = normal;
+            vertex.texture = Vec3::new(texture.x, texture.y, 0.0);
+            vertex.color = color;
+
+            vertices[vertex_index] = vertex.clone();
         }
 
         MeshData::new(&vertices, &indices)
@@ -346,6 +453,7 @@ impl Mesh {
         vao.set_vertex_attribute(shader_program.clone(), "in_normal", 3);
         vao.set_vertex_attribute(shader_program.clone(), "in_bone_ids", 3);
         vao.set_vertex_attribute(shader_program.clone(), "in_bone_weights", 3);
+        vao.set_vertex_attribute(shader_program.clone(), "in_color", 3);
 
         shader_program.use_program(true);
 
@@ -436,5 +544,9 @@ impl Mesh {
 
     pub fn new_square_pyramid() -> Self {
         MeshData::generate_square_pyramid_data().build_mesh(&ShaderProgram::default_shader_program())
+    }
+
+    pub fn new_collada(path: &str) -> Self {
+        MeshData::generate_from_collada(path).build_mesh(&ShaderProgram::default_shader_program())
     }
 }

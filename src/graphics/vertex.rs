@@ -3,8 +3,13 @@ use std::ffi::{c_void, CString};
 use gl::types::*;
 use super::shader::ShaderProgram;
 
-pub const VERTEX_DATA_SIZE: isize = 4;
-pub const VERTEX_DATA_FLOATS: isize = 15;
+pub const VERTEX_SIZE: isize = unsafe {
+    std::mem::size_of::<Vertex>() as isize
+};
+
+pub const FLOAT_SIZE: isize = unsafe {
+    std::mem::size_of::<f32>() as isize
+};
 
 #[derive(Clone, Copy)]
 pub struct Vertex {
@@ -13,6 +18,7 @@ pub struct Vertex {
     pub normals: glm::Vec3,
     pub bone_ids: glm::Vec3,
     pub bone_weights: glm::Vec3,
+    pub color: glm::Vec3,
 }
 
 impl Vertex {
@@ -23,6 +29,7 @@ impl Vertex {
             normals: normals,
             bone_ids: glm::Vec3::new(0.0, 0.0, 0.0),
             bone_weights: glm::Vec3::new(0.0, 0.0, 0.0),
+            color: glm::Vec3::new(1.0, 1.0, 1.0),
         }
     }
 }
@@ -84,7 +91,7 @@ impl VAO {
         unsafe {
             let attrib_loc: i32 = gl::GetAttribLocation(shader_program.program_id, c_str.as_ptr());
             gl::EnableVertexAttribArray(attrib_loc as u32);
-            gl::VertexAttribPointer(attrib_loc as u32, 3, gl::FLOAT, gl::FALSE, i32::try_from(VERTEX_DATA_FLOATS*VERTEX_DATA_SIZE).unwrap(), (self.component_count*VERTEX_DATA_SIZE) as *const c_void);
+            gl::VertexAttribPointer(attrib_loc as u32, 3, gl::FLOAT, gl::FALSE, i32::try_from(VERTEX_SIZE).unwrap(), (self.component_count*FLOAT_SIZE) as *const c_void);
         }
 
         self.component_count += attribute_component_count;
@@ -130,7 +137,7 @@ impl VBO {
 
     pub fn add_data(&self, vertex_data: Vec<Vertex>) {
         unsafe {
-            gl::BufferData(gl::ARRAY_BUFFER, isize::from(vertex_data.len() as i16)*(VERTEX_DATA_FLOATS*VERTEX_DATA_SIZE), vertex_data.as_ptr() as *const c_void, gl::STATIC_DRAW);
+            gl::BufferData(gl::ARRAY_BUFFER, isize::from(vertex_data.len() as i16)*(VERTEX_SIZE), vertex_data.as_ptr() as *const c_void, gl::STATIC_DRAW);
         }
     }
 
@@ -174,7 +181,7 @@ impl IBO {
 
     pub fn add_data(&self, index_data: Vec<u32>) {
         unsafe {
-            gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, isize::from(index_data.len() as i16)*VERTEX_DATA_SIZE, index_data.as_ptr() as *const c_void, gl::STATIC_DRAW);
+            gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, isize::from(index_data.len() as i16)*FLOAT_SIZE, index_data.as_ptr() as *const c_void, gl::STATIC_DRAW);
         }
     }
 

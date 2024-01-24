@@ -6,6 +6,7 @@ use super::color::Color;
 use super::renderable::Renderable;
 use super::renderable::MatrixBuilder;
 
+#[derive(Clone)]
 pub struct View {
     pub size: Vec2,
     pub position: Vec3,
@@ -30,11 +31,13 @@ impl View {
     }
 }
 
+#[derive(Clone)]
 pub struct GraphicsLayer {
     pub view: View,
     pub position: Vec3,
     pub rotation: Vec3,
     pub scale: Vec3,
+    pub parent: Option<Box<GraphicsLayer>>,
 }
 
 impl GraphicsLayer {
@@ -44,6 +47,7 @@ impl GraphicsLayer {
             position: position,
             rotation: rotation,
             scale: scale,
+            parent: None,
         }
     }
 
@@ -56,7 +60,16 @@ impl GraphicsLayer {
         let rotation = MatrixBuilder::rotation(self.rotation);
         let scale = MatrixBuilder::scale(self.scale);
 
+        if self.parent.as_ref().is_some() {
+            let parent_matrix = self.parent.as_ref().unwrap().get_graphics_layer_matrix();
+            return parent_matrix * translation * rotation * scale;
+        }
+
         translation * rotation * scale
+    }
+
+    pub fn add_child(self, child: &mut GraphicsLayer) {
+        child.parent = Some(Box::new(self));
     }
 
     pub fn render_object(&self, obj: &dyn Renderable) {

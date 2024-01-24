@@ -1,8 +1,9 @@
 use crate::graphics::window::*;
+use crate::graphics::view::*;
 
 pub trait Entity {
     fn init(&mut self);
-    fn render(&mut self);
+    fn render(&mut self, graphics: &mut GraphicsLayer);
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input);
     fn exit(&mut self);
 }
@@ -30,11 +31,11 @@ impl EntityManager {
         entity
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self, graphics: &mut GraphicsLayer) {
         let boxed_self = Box::new(self);
 
         for i in 0..boxed_self.entity_list.len() {
-            boxed_self.entity_list[i].render();
+            boxed_self.entity_list[i].render(graphics);
         }
     }
 

@@ -12,13 +12,17 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
     layout (location = 0) in vec3 in_position;
     layout (location = 1) in vec3 in_tex_coords;
     layout (location = 2) in vec3 in_normal;
+    layout (location = 3) in vec3 in_color;
+
     out vec3 tex_coords;
+    out vec3 vertex_color;
 
     uniform mat4 mvp;
 
     void main() {
         gl_Position = mvp * vec4(in_position, 1.0);
         tex_coords = in_tex_coords;
+        vertex_color = in_color;
     }
 ";
 
@@ -26,15 +30,17 @@ pub const DEFAULT_FRAGMENT_SHADER: &str = "
     #version 450 core
 
     in vec3 tex_coords;
+    in vec3 vertex_color;
+
     out vec4 output_color;
 
     uniform sampler2D sampler_objs[4];
-    uniform vec3 color;
 
     void main() {
         highp int sampler_index = int(tex_coords.z);
 
-        output_color = texture(sampler_objs[sampler_index], tex_coords.xy) * vec4(color, 1.0);
+        output_color = texture(sampler_objs[sampler_index], tex_coords.xy) * vec4(vertex_color, 1.0);
+        //output_color = vec4(vertex_color, 1.0);
     }
 ";
 

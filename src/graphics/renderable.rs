@@ -1,5 +1,10 @@
+use std::ptr::null_mut;
+
+use crate::Color;
+use crate::ColorBuffer;
 use crate::Texture;
 
+use super::color;
 use super::mesh::Mesh;
 use super::view::GraphicsLayer;
 use glm::Vec2;
@@ -89,7 +94,23 @@ impl Renderable for RenderableObject {
             self.texture_array[i].bind(i as u32, true)
         }
 
+        let mut temp_texture: Option<Texture> = None;
+
+        if self.texture_array.len() == 0 {
+            let color_buffer = ColorBuffer::new(64, 64, &Color::from_hex(0xffffffff));
+            temp_texture = Some(color_buffer.build_texture());
+        }
+
+        if temp_texture.is_some() {
+            temp_texture.as_ref().unwrap().bind(0, true);
+        }
+
         self.mesh.render();
+
+        if temp_texture.is_some() {
+            temp_texture.as_ref().unwrap().bind(0, false);
+            temp_texture.as_ref().unwrap().delete();
+        }
 
         for i in 0..self.texture_array.len() {
             self.texture_array[i].bind(i as u32, false)

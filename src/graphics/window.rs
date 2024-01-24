@@ -17,6 +17,7 @@ use glutin::context::NotCurrentContext;
 use std::ffi::CString;
 use glutin::surface::Surface;
 use crate::util::entity::EntityManager;
+use crate::GraphicsLayer;
 use std::time::SystemTime;
 
 use super::color::Color;
@@ -38,10 +39,11 @@ pub struct Window {
     pub entity_manager: Box<EntityManager>,
     pub current_frames_per_second: u64,
     pub current_ticks_per_second: u64,
+    pub default_graphics_layer: GraphicsLayer,
 }
 
 impl Window {
-    pub fn new(title: &str, width: u32, height: u32) -> Result<Self, Box<dyn Error>> {
+    pub fn new(title: &str, width: u32, height: u32, default_graphics_layer: &GraphicsLayer) -> Result<Self, Box<dyn Error>> {
         let event_loop = winit::event_loop::EventLoop::new().unwrap();
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
@@ -106,6 +108,7 @@ impl Window {
             entity_manager: Box::from(EntityManager::new()),
             current_frames_per_second: 0,
             current_ticks_per_second: 0,
+            default_graphics_layer: default_graphics_layer.clone(),
         })
     }
 
@@ -208,8 +211,8 @@ impl Window {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::RedrawRequested => {
                         Window::clear_screen(Color::new(165, 93, 63, 255));
-                        loop_handler.render(&mut self.entity_manager);
-                        self.entity_manager.render();
+                        loop_handler.render(&mut self.entity_manager, &mut self.default_graphics_layer);
+                        self.entity_manager.render(&mut self.default_graphics_layer);
                         self.context_surface.as_ref().unwrap().swap_buffers(self.current_context.as_ref().unwrap()).unwrap();
                     },
                     WindowEvent::Resized(size) => {
@@ -295,7 +298,7 @@ impl Window {
 
 pub trait EventLoopHandler {
     fn init(&self, entity_manager: &mut Box<EntityManager>);
-    fn render(&self, entity_manager: &mut Box<EntityManager>);
+    fn render(&self, entity_manager: &mut Box<EntityManager>, graphics: &mut GraphicsLayer);
     fn update(&self, entity_manager: &mut Box<EntityManager>, event_queue: &mut EventQueue, input: &mut Input);
     fn exit(&self, entity_manager: &mut Box<EntityManager>);
 }
@@ -318,6 +321,10 @@ impl EventQueue {
             self.internal_queue.pop_front();
         }
 
+        self.internal_queue = VecDeque::<Event<()>>::new();
+    }
+
+    pub fn ignore_events(&mut self) {
         self.internal_queue = VecDeque::<Event<()>>::new();
     }
 
@@ -354,18 +361,34 @@ impl Input {
     }
 
     pub fn set_key_pressed(&mut self, scancode: u32) {
+        if scancode as usize >= self.keys.len() {
+            return;
+        }
+
         self.keys[scancode as usize] = true;
     }
 
     pub fn set_key_unpressed(&mut self, scancode: u32) {
+        if scancode as usize >= self.keys.len() {
+            return;
+        }
+
         self.keys[scancode as usize] = false;
     }
 
     pub fn set_button_pressed(&mut self, button: u32) {
+        if button as usize >= self.buttons.len() {
+            return;
+        }
+
         self.buttons[button as usize] = true;
     }
 
     pub fn set_button_unpressed(&mut self, button: u32) {
+        if button as usize >= self.buttons.len() {
+            return;
+        }
+
         self.buttons[button as usize] = false;
     }
 
@@ -395,26 +418,50 @@ impl Input {
     }
 
     pub fn was_key_just_pressed(&self, key: KeyCode) -> bool {
+        if Self::key_to_scancode(key) as usize >= self.keys.len() {
+            return false;
+        }
+
         self.keys[Self::key_to_scancode(key) as usize] && !self.keys_last[Self::key_to_scancode(key) as usize]
     }
 
     pub fn was_key_just_released(&self, key: KeyCode) -> bool {
+        if Self::key_to_scancode(key) as usize >= self.keys.len() {
+            return false;
+        }
+
         !self.keys[Self::key_to_scancode(key) as usize] && self.keys_last[Self::key_to_scancode(key) as usize]
     }
 
     pub fn is_key_being_held_down(&self, key: KeyCode) -> bool {
+        if Self::key_to_scancode(key) as usize >= self.keys.len() {
+            return false;
+        }
+
         self.keys[Self::key_to_scancode(key) as usize]
     }
 
     pub fn was_button_just_pressed(&self, button: MouseButton) -> bool {
+        if Self::mouse_button_to_index(button) as usize >= self.buttons.len() {
+            return false;
+        }
+
         self.buttons[Self::mouse_button_to_index(button) as usize] && !self.buttons_last[Self::mouse_button_to_index(button) as usize]
     }
 
     pub fn was_button_just_released(&self, button: MouseButton) -> bool {
+        if Self::mouse_button_to_index(button) as usize >= self.buttons.len() {
+            return false;
+        }
+
         !self.buttons[Self::mouse_button_to_index(button) as usize] && self.buttons_last[Self::mouse_button_to_index(button) as usize]
     }
 
     pub fn is_button_being_held(&self, button: MouseButton) -> bool {
+        if Self::mouse_button_to_index(button) as usize >= self.buttons.len() {
+            return false;
+        }
+
         self.buttons[Self::mouse_button_to_index(button) as usize]
     }
 }
