@@ -1,16 +1,23 @@
+use std::any::Any;
+use std::borrow::Borrow;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::mem;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::path;
+use std::rc::Rc;
 use std::slice;
-use std::str::FromStr;
 use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
+use crate::MatrixBuilder;
 use gl::types::GLint;
 use glm::Vec2;
 use glm::Vec3;
 use dae_parser::*;
-
-use super::texture;
-use super::vertex;
+use glm::Vec4;
+use glm::Vector3;
+use crate::graphics::animation::*;
 
 #[derive(Clone)]
 pub struct MeshData {
@@ -50,12 +57,14 @@ impl MeshData {
         let mut texture_indices: Vec<u32> = Vec::new();
         let mut color_indices: Vec<u32> = Vec::new();
 
+        let mut skin_weights: Vec<f32> = Vec::new();
+        let mut joints: Vec<Joint> = Vec::new();
 
         for geometry in doc.iter::<Geometry>() {
             let mesh = geometry.element.as_mesh().unwrap();
             
             for source in &mesh.sources {
-                if source.id.clone().unwrap().contains("positions") {
+                if source.id.clone().unwrap().contains("position") {
                     let positions = source.array.clone().unwrap();
 
                     match positions {
@@ -72,12 +81,12 @@ impl MeshData {
                     }
                 }
 
-                if source.id.clone().unwrap().contains("normals") {
+                if source.id.clone().unwrap().contains("normal") {
                     let normals = source.array.clone().unwrap();
 
                     match normals {
                         ArrayElement::Float(normals) => {
-                            for i in 0..normals.len() / 3{
+                            for i in 0..normals.len() / 3 {
                                 let x = normals[i * 3];
                                 let y = normals[i * 3 + 1];
                                 let z = normals[i * 3 + 2];
@@ -110,10 +119,10 @@ impl MeshData {
 
                     match colors {
                         ArrayElement::Float(colors) => {
-                            for i in 0..colors.len() / 3 {
-                                let r = colors[i * 3];
-                                let g = colors[i * 3 + 1];
-                                let b = colors[i * 3 + 2];
+                            for i in 0..colors.len() / 4 {
+                                let r = colors[i * 4];
+                                let g = colors[i * 4 + 1];
+                                let b = colors[i * 4 + 2];
 
                                 color_array.push(Vec3::new(r, g, b));
                             }
@@ -127,112 +136,111 @@ impl MeshData {
                 let poly_list_opt = element.as_polylist();
                 let triangles_opt = element.as_triangles();
 
+                let mut primitives: Box<[u32]> = Box::new([]);
+                let mut inputs = InputList::new(vec![]);
+
                 if poly_list_opt.is_some() {
                     let poly_list = poly_list_opt.unwrap();
-                    let primitives = poly_list.data.clone().prim;
-                    let prim_vec = primitives.to_vec();
-                    let inputs = poly_list.inputs.clone();
-                    let mut stride = 3 as usize;
-                    let mut normal_offset = 1 as usize;
-                    let mut texture_offset = 2 as usize;
-                    let mut color_offset = 3 as usize;
 
-                    let mut max_offset = stride - 1;
-                    for input in inputs.iter() {
-                        let offset = input.offset as usize;
-                        let semantic = input.semantic.clone().to_string();
-
-                        if semantic == "NORMAL" {
-                            normal_offset = offset;
-                        }
-
-                        if semantic == "TEXCOORD" {
-                            texture_offset = offset;
-                        }
-
-                        if semantic == "COLOR" {
-                            color_offset = offset;
-                        }
-
-                        if offset > max_offset {
-                            max_offset = offset;
-                        }
-                    }
-
-                    stride = max_offset + 1;
-                    
-                    for i in (0..prim_vec.len()).step_by(stride) {
-                        indices.push(prim_vec[i]);
-                        normal_indices.push(prim_vec[i + normal_offset]);
-                        texture_indices.push(prim_vec[i + texture_offset]);
-
-                        if stride > 3 {
-                            color_indices.push(prim_vec[i + color_offset]);
-                        }
-                    }
+                    primitives = poly_list.data.clone().prim;
+                    inputs = poly_list.inputs.clone();
                 }
 
                 else if triangles_opt.is_some() {
                     let triangles = triangles_opt.unwrap();
-                    let primitives = triangles.data.clone().prim.unwrap();
-                    let prim_vec = primitives.to_vec();
-                    let inputs = triangles.inputs.clone();
-                    let mut stride = 3 as usize;
-                    let mut normal_offset = 1 as usize;
-                    let mut texture_offset = 2 as usize;
-                    let mut color_offset = 3 as usize;
 
-                    let mut max_offset = stride - 1;
-                    for input in inputs.iter() {
-                        let offset = input.offset as usize;
-                        let semantic = input.semantic.clone().to_string();
+                    primitives = triangles.data.clone().prim.unwrap();
+                    inputs = triangles.inputs.clone();
+                }
 
-                        if semantic == "NORMAL" {
-                            normal_offset = offset;
-                        }
+                let prim_vec = primitives.to_vec();
+                let mut stride = 3 as usize;
+                let mut normal_offset = 1 as usize;
+                let mut texture_offset = 2 as usize;
+                let mut color_offset = 3 as usize;
+                let mut found_semantics: Vector3<bool> = Vector3::new(false, false, false);
 
-                        if semantic == "TEXCOORD" {
-                            texture_offset = offset;
-                        }
+                let mut max_offset = stride - 1;
+                for input in inputs.iter() {
+                    let offset = input.offset as usize;
+                    let semantic = input.semantic.clone().to_string();
 
-                        if semantic == "COLOR" {
-                            color_offset = offset;
-                        }
-
-                        if offset > max_offset {
-                            max_offset = offset;
-                        }
-
-                        if offset > max_offset {
-                            max_offset = offset;
-                        }
+                    if semantic == "NORMAL" {
+                        normal_offset = offset;
+                        found_semantics.x = true;
                     }
 
-                    stride = max_offset + 1;
+                    if semantic == "TEXCOORD" {
+                        texture_offset = offset;
+                        found_semantics.y = true;
+                    }
 
-                    for i in (0..prim_vec.len()).step_by(stride) {
-                        indices.push(prim_vec[i]);
-                        normal_indices.push(prim_vec[i + normal_offset]);
-                        texture_indices.push(prim_vec[i + texture_offset]);
+                    if semantic == "COLOR" {
+                        color_offset = offset;
+                        found_semantics.z = true;
+                    }
 
-                        if stride > 3 {
-                            color_indices.push(prim_vec[i + color_offset]);
-                        }
+                    if offset > max_offset {
+                        max_offset = offset;
                     }
                 }
+
+                stride = max_offset + 1;
+                    
+                for i in (0..prim_vec.len()).step_by(stride) {
+                    indices.push(prim_vec[i]);
+
+                    if found_semantics.x {
+                        normal_indices.push(prim_vec[i + normal_offset]);
+                    }
+
+                    if found_semantics.y {
+                        texture_indices.push(prim_vec[i + texture_offset]);
+                    }
+
+                    if found_semantics.z {
+                        color_indices.push(prim_vec[i + color_offset]);
+                    }
+                }
+                
             }
         }
 
         for i in 0..indices.len() {
             let vertex_index = indices[i] as usize;
-            let normal_index = normal_indices[i] as usize;
-            let texture_index = texture_indices[i] as usize;
-            let color_index = color_indices[i] as usize;
+            let mut normal_index = 0 as usize;
+            let mut texture_index = 0 as usize;
+            let mut color_index = 0 as usize;
+
+            if normal_indices.len() > 0 {
+                normal_index = normal_indices[i] as usize;
+            }
+
+            if texture_indices.len() > 0 {
+                texture_index = texture_indices[i] as usize;
+            }
+
+            if color_indices.len() > 0 {
+                color_index = color_indices[i] as usize;
+            }
 
             let mut vertex = vertices[vertex_index].clone();
-            let normal = normal_array[normal_index].clone();
-            let texture = texture_array[texture_index].clone();
-            let color = color_array[color_index].clone();
+
+            let mut normal = Vec3::new(0.0, 0.0, 0.0);
+            let mut texture = Vec2::new(0.0, 0.0);
+            let mut color = Vec3::new(1.0, 1.0, 1.0);
+
+            if normal_array.len() > 0 && normal_index < normal_array.len() {
+                normal = normal_array[normal_index].clone();
+            }
+
+            if texture_array.len() > 0 && texture_index < texture_array.len() {
+                texture = texture_array[texture_index].clone();
+            }
+
+            if color_array.len() > 0 && color_index < color_array.len() {
+                color = color_array[color_index].clone();
+            }
 
             vertex.normals = normal;
             vertex.texture = Vec3::new(texture.x, texture.y, 0.0);
@@ -240,6 +248,197 @@ impl MeshData {
 
             vertices[vertex_index] = vertex.clone();
         }
+
+        for controller in doc.iter::<Controller>() {
+            match &controller.element {
+                ControlElement::Skin(skin) => {
+                    for source in &skin.sources {
+                        if source.id.clone().unwrap().contains("weights") {
+                            let weights = source.array.clone().unwrap();
+
+                            match weights {
+                                ArrayElement::Float(weights) => {
+                                    for i in 0..weights.len() {
+                                        skin_weights.push(weights[i]);
+                                    }
+                                },
+                                _ => {},
+                            }
+                        }
+
+                        if source.id.clone().unwrap().contains("joints") {
+                            let joints_array = source.array.clone().unwrap();
+
+                            match joints_array {
+                                ArrayElement::Name(joints_array) => {
+                                    for i in 0..joints_array.len() {
+                                        let joint_name = joints_array[i].clone();
+                                        let joint = Joint::new(i.try_into().unwrap(), joint_name);
+
+                                        joints.push(joint);
+                                    }
+                                },
+                                _ => {},
+                            }
+                        }
+                    }
+
+                    let vertex_weights = skin.weights.clone();
+
+                    let vcount = vertex_weights.vcount.clone().to_vec();
+                    let prim = vertex_weights.prim.clone().to_vec();
+
+                    let mut last_vertex_weight_index = 0;
+
+                    for i in 0..vcount.len() {
+                        let mut bone_ids: Vec<f32> = Vec::new();
+                        let mut bone_weights_indices: Vec<f32> = Vec::new();
+
+                        for j in 0..vcount[i] {
+                            bone_ids.push(prim[last_vertex_weight_index + j as usize] as f32);
+                            bone_weights_indices.push(prim[last_vertex_weight_index + j as usize + 1] as f32);
+                        }
+
+                        
+                        let mut real_bone_weights: Vec<f32> = Vec::new();
+                        for i in 0..bone_weights_indices.len() {
+                            real_bone_weights.push(skin_weights[bone_weights_indices[i] as usize]);
+                        }
+
+                        let mut final_bone_ids = Vec3::new(0.0, 0.0, 0.0);
+                        let mut final_bone_weights = Vec3::new(0.0, 0.0, 0.0);
+
+                        if vcount[i] < 4 {
+                            for j in 0..vcount[i] {
+                                final_bone_ids[j as usize] = bone_ids[j as usize];
+                                final_bone_weights[j as usize] = real_bone_weights[j as usize];
+                            }
+                        }
+
+                        else if vcount[i] >= 4 {
+                            let real_bone_weights_copy = real_bone_weights.clone();
+                            
+                            let mut max_weights: Vec3 = Vec3::new(0.0, 0.0, 0.0);
+                            let mut max_weights_ids: Vec3 = Vec3::new(0.0, 0.0, 0.0);
+
+                            for index in 0..3 {
+                                let mut max_weight = 0.0;
+                                let mut max_weight_index: usize = 0;
+
+                                for j in 0..real_bone_weights_copy.len() {
+                                    if real_bone_weights_copy[j] > max_weight {
+                                        max_weight = real_bone_weights_copy[j];
+                                        max_weight_index = j;
+                                    }
+                                }
+
+                                max_weights[index] = max_weight;
+                                max_weights_ids[index] = bone_ids[max_weight_index];
+                            }
+
+                            final_bone_weights = glm::normalize(max_weights);
+                            final_bone_ids = max_weights_ids;
+                        }
+
+                        vertices[i].bone_ids = final_bone_ids;
+                        vertices[i].bone_weights = final_bone_weights;
+
+                        last_vertex_weight_index += vcount[i] as usize;
+                    }
+                }
+                ControlElement::Morph(morph) => {}
+            }
+        }
+
+        fn post_order_traversal(child: &Node, parent_joint: &mut Joint, joint_list: &Vec<Joint>) {
+            if child.ty == NodeType::Joint {
+                let name = child.id.clone().unwrap();
+                let mut joint = Joint {
+                    id: 0,
+                    name: name.clone(),
+                    local_bind_transform: MatrixBuilder::identity(1.0), // initialize with identity matrix
+                    children: Vec::new(),
+                    inverse_bind_transform: MatrixBuilder::identity(1.0), // initialize with identity matrix
+                };
+
+                for i in 0..joint_list.len() {
+                    if joint_list[i].name == name {
+                        joint.id = joint_list[i].id;
+                        break;
+                    }
+                }
+
+                for transform in &child.transforms {
+                    if let Transform::Matrix(matrix) = transform {
+                        let matrix = matrix.clone();
+                        let matrix_data = (*matrix.0).clone();
+                        let mut matrix_data_vecs: [Vec4; 4] = [Vec4::new(0.0, 0.0, 0.0, 0.0); 4];
+
+                        for x in 0..4 {
+                            for y in 0..4 {
+                                matrix_data_vecs[x][y] = matrix_data[x + y * 4];
+                            }
+                        }
+
+                        joint.local_bind_transform = glm::Mat4::from_array(&matrix_data_vecs).clone();
+                    }
+                }
+
+                for c in &child.children {
+                    post_order_traversal(c, &mut joint, joint_list);
+                }
+
+                parent_joint.children.push(Box::new(joint));
+            }
+        }
+
+        let mut final_root_joint = Joint {
+            id: 0,
+            name: "".to_string(),
+            local_bind_transform: MatrixBuilder::identity(1.0),
+            children: Vec::new(),
+            inverse_bind_transform: MatrixBuilder::identity(1.0),
+        };
+
+        // Call the post-order traversal function
+        for visual_scene in doc.iter::<VisualScene>() {
+            for node in visual_scene.clone().nodes {
+                if node.id.clone().unwrap().contains("Armature") {
+                    for child in node.children {
+                        let mut root_joint = Joint {
+                            id: 0,
+                            name: "".to_string(),
+                            local_bind_transform: MatrixBuilder::identity(1.0),
+                            children: Vec::new(),
+                            inverse_bind_transform: MatrixBuilder::identity(1.0),
+                        };
+
+                        post_order_traversal(&child, &mut root_joint, &joints);
+                        final_root_joint = *root_joint.children[0].clone();
+                    }
+                }
+            }
+        }
+
+        final_root_joint.calculate_inverse_bind_transform(final_root_joint.local_bind_transform.clone());
+
+        println!("Joints: {}", &joints.len());
+        for joint in &joints {
+            println!("Joint: {}", joint.name);
+        }
+        println!("---------------------------------");
+        println!("---------------------------------");
+        final_root_joint.print_joint("-");
+        
+        //todo: Load animation section data.
+        //let animation_times
+        //for animation in doc.iter::<Animation>() {
+        //    for source in &animation.sources() {
+        //        if source.id.clone().unwrap().contains("input") {
+        //            
+        //       }
+        //    }
+        //}
 
         MeshData::new(&vertices, &indices)
     }

@@ -20,7 +20,7 @@ struct Model {
 
 impl Entity for Model {
     fn init(&mut self) {
-        
+        //self.renderable.texture_array.push(Texture::from_file("./res/crate.png"));
     }
 
     fn render(&mut self, graphics: &mut GraphicsLayer) {
@@ -28,7 +28,7 @@ impl Entity for Model {
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
-        self.renderable.rotation.y += 0.01;
+        self.renderable.rotation.x += 0.01;
     }
 
     fn exit(&mut self) {
@@ -42,7 +42,7 @@ impl EventLoopHandler for Application {
     fn init(&self, entity_manager: &mut Box<EntityManager>) {
         let model = Model {
             renderable: RenderableObject::new(
-                Mesh::new_collada("./res/color_monkeh_2.dae"), 
+                Mesh::new_collada("./res/model.dae"), 
                 &Vec3::new(0.0, 0.0, 0.0), 
                 &Vec3::new(0.0, 3.0, 0.0), 
                 &Vec3::new(1.0, 1.0, 1.0)
@@ -53,7 +53,7 @@ impl EventLoopHandler for Application {
     }
 
     fn render(&self, entity_manager: &mut Box<EntityManager>, graphics: &mut GraphicsLayer) {
-        
+        //graphics.clear_screen(Color::from_hex(0x00000000));
     }
 
     fn update(&self, entity_manager: &mut Box<EntityManager>, event_queue: &mut EventQueue, input: &mut Input) {
@@ -68,7 +68,7 @@ impl EventLoopHandler for Application {
 fn main() {
     let graphics = GraphicsLayer::default_graphics_layer(View::new(
         Vec2::new(1280.0/2.0, 720.0/2.0), 
-        Vec3::new(0.0, 0.0, -5.0), 
+        Vec3::new(0.0, 0.0, -3.0), 
         Vec3::new(0.0, 0.0, 1.0), 
         Vec3::new(0.0, 1.0, 0.0), 
         45.0

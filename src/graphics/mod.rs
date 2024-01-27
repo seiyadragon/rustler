@@ -8,3 +8,4 @@ pub mod renderable;
 pub mod view;
 pub mod texture;
 pub mod color;
+pub mod animation;

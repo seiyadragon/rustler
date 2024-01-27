@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-collada = "0.15.0"
 dae-parser = "0.10.0"
 gl = "0.14.0"
 glm = "0.2.3"
