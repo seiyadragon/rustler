@@ -1,4 +1,7 @@
-use crate::graphics::renderable::MatrixBuilder;
+use crate::graphics::math::MatrixBuilder;
+use glm::Vec3;
+use super::math::Quaternion;
+
 pub struct Joint {
     pub id: i32,
     pub name: String,
@@ -53,4 +56,9 @@ impl Clone for Joint {
             inverse_bind_transform: self.inverse_bind_transform.clone(),
         }
     }
+}
+
+pub struct JointTransform {
+    pub position: Vec3,
+    pub rotation: Quaternion,
 }
