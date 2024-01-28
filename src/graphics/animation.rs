@@ -1,4 +1,4 @@
-use crate::graphics::math::MatrixBuilder;
+use crate::{graphics::math::MatrixBuilder, Mesh};
 use glm::Vec3;
 use super::math::Quaternion;
 
@@ -58,7 +58,52 @@ impl Clone for Joint {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct JointTransform {
     pub position: Vec3,
     pub rotation: Quaternion,
+}
+
+impl JointTransform {
+    pub fn new(position: Vec3, rotation: Quaternion) -> Self {
+        JointTransform {
+            position: position,
+            rotation: rotation,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct KeyFrame {
+    pub time_stamp: f32,
+    pub pose: Vec<JointTransform>,
+}
+
+impl KeyFrame {
+    pub fn new(time_stamp: f32, pose: Vec<JointTransform>) -> Self {
+        KeyFrame {
+            time_stamp: time_stamp,
+            pose: pose,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AnimationData {
+    pub key_frames: Vec<KeyFrame>,
+}
+
+impl AnimationData {
+    pub fn new(key_frames: Vec<KeyFrame>) -> Self {
+        AnimationData {
+            key_frames: key_frames,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AnimatedMesh {
+    pub internal_mesh: Mesh,
+    pub skeleton: Joint,
+    pub animation: AnimationData,
 }

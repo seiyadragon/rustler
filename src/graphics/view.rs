@@ -4,7 +4,7 @@ use glm::Mat4;
 
 use super::color::Color;
 use super::renderable::Renderable;
-use super::renderable::MatrixBuilder;
+use super::math::MatrixBuilder;
 
 #[derive(Clone)]
 pub struct View {

@@ -43,7 +43,7 @@ impl MatrixBuilder {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Quaternion {
     x: f32,
     y: f32,

@@ -68,7 +68,7 @@ impl EventLoopHandler for Application {
 fn main() {
     let graphics = GraphicsLayer::default_graphics_layer(View::new(
         Vec2::new(1280.0/2.0, 720.0/2.0), 
-        Vec3::new(0.0, 0.0, -3.0), 
+        Vec3::new(0.0, 0.0, -20.0), 
         Vec3::new(0.0, 0.0, 1.0), 
         Vec3::new(0.0, 1.0, 0.0), 
         45.0
@@ -76,6 +76,6 @@ fn main() {
 
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2, &graphics).unwrap();
-    window.run_at_20_ticks_with_frames(&app, 20);
-    //window.run_at_20_ticks_with_frames(&app, 2000);
+    //window.run_at_20_ticks_with_frames(&app, 20);
+    window.run_at_20_ticks_with_frames(&app, 2000);
 }

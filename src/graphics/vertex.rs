@@ -1,7 +1,6 @@
 use core::fmt;
 use std::ffi::{c_void, CString};
 use gl::types::*;
-use crate::MatrixBuilder;
 
 use super::shader::ShaderProgram;
 

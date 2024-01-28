@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::slice;
 use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
-use crate::MatrixBuilder;
+use super::math::MatrixBuilder;
 use gl::types::GLint;
 use glm::Vec2;
 use glm::Vec3;
@@ -431,14 +431,14 @@ impl MeshData {
         final_root_joint.print_joint("-");
         
         //todo: Load animation section data.
-        //let animation_times
-        //for animation in doc.iter::<Animation>() {
-        //    for source in &animation.sources() {
-        //        if source.id.clone().unwrap().contains("input") {
-        //            
-        //       }
-        //    }
-        //}
+        let animation_times: Vec<f32> = Vec::new();
+        for animation in doc.iter::<Animation>() {
+            for source in &animation.sources() {
+                if source.id.clone().unwrap().contains("input") {
+                    
+               }
+            }
+        }
 
         MeshData::new(&vertices, &indices)
     }
