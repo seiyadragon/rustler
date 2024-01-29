@@ -11,15 +11,25 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
     layout (location = 0) in vec3 in_position;
     layout (location = 1) in vec3 in_tex_coords;
     layout (location = 2) in vec3 in_normal;
-    layout (location = 3) in vec3 in_color;
+    layout (location = 3) in vec3 in_bone_ids;
+    layout (location = 4) in vec3 in_bone_weights;
+    layout (location = 5) in vec3 in_color;
 
     out vec3 tex_coords;
     out vec3 vertex_color;
 
     uniform mat4 mvp;
 
+    uniform mat4 bones[100];
+
     void main() {
-        gl_Position = mvp * vec4(in_position, 1.0);
+        gl_Position = mvp * (
+            bones[highp int(in_bone_ids.x)] * vec4(in_position, 1.0) * in_bone_weights.x +
+            bones[highp int(in_bone_ids.y)] * vec4(in_position, 1.0) * in_bone_weights.y +
+            bones[highp int(in_bone_ids.z)] * vec4(in_position, 1.0) * in_bone_weights.z
+        );
+
+        //gl_Position = mvp * vec4(in_position, 1.0);
         tex_coords = in_tex_coords;
         vertex_color = in_color;
     }
@@ -348,6 +358,18 @@ impl ShaderProgram {
 
         unsafe {
             gl::Uniform1fv(gl::GetUniformLocation(self.program_id, c_str.as_ptr()), vec.len() as i32, vec.as_ptr())
+        }
+
+        self.use_program(false);
+    }
+
+    pub fn set_uniform_vec_mat4_f32(&self, name: &str, vec: &Vec<Mat4>) {
+        let c_str = CString::new(name.as_bytes()).unwrap();
+
+        self.use_program(true);
+
+        unsafe {
+            gl::UniformMatrix4fv(gl::GetUniformLocation(self.program_id, c_str.as_ptr()), vec.len() as i32, gl::FALSE, vec.as_ptr() as *const f32);
         }
 
         self.use_program(false);

@@ -1,5 +1,5 @@
-use core::fmt;
-use std::ffi::{c_void, CString};
+use core::{fmt, slice};
+use std::{ffi::{c_void, CString}, mem};
 use gl::types::*;
 use glam::Vec3;
 
@@ -99,10 +99,91 @@ impl VAO {
         self.component_count += attribute_component_count;
     }
 
-    pub fn delete(&self) {
+    pub fn render(&self, index_count: usize) {
+        self.bind(true);
+
+        unsafe {
+            gl::DrawElements(gl::TRIANGLES, index_count as i32, gl::UNSIGNED_INT, std::ptr::null());
+        }
+
+        self.bind(false);
+    }
+
+    pub fn get_data(&self) -> (Vec<Vertex>, Vec<u32>) {
+        unsafe {
+            self.bind(true);
+
+            let mut vertex_size: GLint = 0;
+            gl::GetBufferParameteriv(gl::ARRAY_BUFFER, gl::BUFFER_SIZE, &mut vertex_size);
+
+            let data_ptr = gl::MapBufferRange(gl::ARRAY_BUFFER, 0, vertex_size as isize, gl::MAP_READ_BIT) as *const Vertex;
+            let data_slice = slice::from_raw_parts(data_ptr, vertex_size as usize / mem::size_of::<Vertex>());
+            let vertex_data: Vec<Vertex> = data_slice.to_vec();
+
+            gl::UnmapBuffer(gl::ARRAY_BUFFER);
+
+            let mut index_size: GLint = 0;
+            gl::GetBufferParameteriv(gl::ELEMENT_ARRAY_BUFFER, gl::BUFFER_SIZE, &mut index_size);
+
+            let data_ptr = gl::MapBufferRange(gl::ELEMENT_ARRAY_BUFFER, 0, index_size as isize, gl::MAP_READ_BIT) as *const u32;
+            let data_slice = slice::from_raw_parts(data_ptr, index_size as usize / mem::size_of::<u32>());
+            let index_data: Vec<u32> = data_slice.to_vec();
+
+            gl::UnmapBuffer(gl::ELEMENT_ARRAY_BUFFER);
+
+            self.bind(false);
+
+            (vertex_data, index_data)
+        }
+    }
+
+    pub fn delete(&self) -> (Vec<Vertex>, Vec<u32>) {
+        let (vertex_data, index_data) = self.get_data();
+
         unsafe {
             gl::DeleteVertexArrays(1, &self.id);
         }
+
+        (vertex_data, index_data)
+    }
+
+    pub fn build_from_data(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, shader_program: &ShaderProgram) -> Self {
+        let vbo = VBO::new();
+        vbo.bind(true);
+        vbo.add_data(vertex_array.clone());
+        vbo.bind(false);
+
+        let ibo = IBO::new();
+        ibo.bind(true);
+        ibo.add_data(index_array.clone());
+        ibo.bind(false);
+
+        let mut vao = VAO::new();
+
+        vao.bind(true);
+        vbo.bind(true);
+        ibo.bind(true);
+
+        vao.set_vertex_attribute(shader_program.clone(), "in_position", 3);
+        vao.set_vertex_attribute(shader_program.clone(), "in_tex_coords", 3);
+        vao.set_vertex_attribute(shader_program.clone(), "in_normal", 3);
+        vao.set_vertex_attribute(shader_program.clone(), "in_bone_ids", 3);
+        vao.set_vertex_attribute(shader_program.clone(), "in_bone_weights", 3);
+        vao.set_vertex_attribute(shader_program.clone(), "in_color", 3);
+
+        shader_program.use_program(true);
+
+        shader_program.set_uniform_vec_i32("sampler_objs", &vec![
+            00, 01, 02, 03, 04, 05, 06, 07,
+            08, 09, 10, 11, 12, 13, 14, 15,
+            16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31,
+        ]);
+
+        shader_program.use_program(false);
+        vao.bind(false);
+
+        vao
     }
 }
 

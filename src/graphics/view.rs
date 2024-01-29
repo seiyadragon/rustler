@@ -13,13 +13,13 @@ pub struct View {
 }
 
 impl View {
-    pub fn new(size: Vec2, position: Vec3, front: Vec3, up: Vec3, fov: Deg) -> Self {
+    pub fn new(size: Vec2, position: Vec3, front: Vec3, up: Vec3, fov: f32) -> Self {
         View {
             size: size,
             position: position,
             front: front,
             up: up,
-            fov: fov,
+            fov: Deg(fov),
         }
     }
 
@@ -27,7 +27,7 @@ impl View {
         Mat4::perspective_rh_gl(
             self.fov.to_radians().as_float(), 
             self.size.x / self.size.y, 0.1, 100.0
-        ) * Mat4::look_at_lh(
+        ) * Mat4::look_at_rh(
             self.position, 
             self.front, 
             self.up

@@ -1,4 +1,3 @@
-use crate::Mesh;
 use glam::{Vec3, Mat4, Quat};
 
 pub struct Joint {
@@ -10,26 +9,68 @@ pub struct Joint {
 }
 
 impl Joint {
-    pub fn new(id: i32, name: String) -> Self {
+    pub fn new(id: i32, name: &str) -> Self {
         Joint {
             id: id,
-            name: name,
+            name: String::from(name),
             children: Vec::new(),
             local_bind_transform: Mat4::IDENTITY,
             inverse_bind_transform: Mat4::IDENTITY,
         }
     }
 
-    pub fn add_child(&mut self, child: Joint) {
-        self.children.push(Box::new(child));
+    pub fn add_child(&mut self, child: &Joint) {
+        self.children.push(Box::new(child.clone()));
     }
 
-    pub fn calculate_inverse_bind_transform(&mut self, parent_bind_transform: Mat4) {
-        let bind_transform = parent_bind_transform * self.local_bind_transform;
+    pub fn calculate_inverse_bind_transform(&mut self, parent_bind_transform: &Mat4) {
+        let bind_transform = parent_bind_transform.clone() * self.local_bind_transform;
         self.inverse_bind_transform = self.local_bind_transform.inverse();
 
         for child in &mut self.children {
-            child.calculate_inverse_bind_transform(bind_transform);
+            child.calculate_inverse_bind_transform(&bind_transform);
+        }
+    }
+
+    pub fn flatten(&self) -> Vec<Joint> {
+        let mut joints: Vec<Joint> = Vec::new();
+        joints.push(self.clone());
+
+        for child in &self.children {
+            let mut child_joints = child.flatten();
+            joints.append(&mut child_joints);
+        }
+
+        joints
+    }
+
+    pub fn get_joint_matrices(&self) -> Vec<Mat4> {
+        let mut joint_matrices: Vec<Mat4> = Vec::new();
+
+        joint_matrices.push(self.inverse_bind_transform);
+
+        for child in &self.children {
+            joint_matrices.append(&mut child.get_joint_matrices());
+        }
+
+        joint_matrices
+    }
+
+    pub fn apply_joint_transform(&mut self, joint_transform: &JointTransform) {
+        if self.name == joint_transform.joint {
+            let translation = Mat4::from_translation(joint_transform.position);
+            let rotation = Mat4::from_quat(joint_transform.rotation);
+            self.local_bind_transform = translation * rotation;
+        }
+
+        for child in &mut self.children {
+            child.apply_joint_transform(joint_transform);
+        }
+    }
+
+    pub fn apply_keyframe(&mut self, keyframe: &KeyFrame) {
+        for joint_transform in &keyframe.pose {
+            self.apply_joint_transform(joint_transform);
         }
     }
 
@@ -57,18 +98,26 @@ impl Clone for Joint {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct JointTransform {
+    pub joint: String,
     pub position: Vec3,
     pub rotation: Quat,
 }
 
 impl JointTransform {
-    pub fn new(position: Vec3, rotation: Quat) -> Self {
+    pub fn new(joint: &str, position: &Vec3, rotation: &Quat) -> Self {
         JointTransform {
-            position: position,
-            rotation: rotation,
+            joint: String::from(joint),
+            position: position.clone(),
+            rotation: rotation.clone(),
         }
+    }
+}
+
+impl std::fmt::Display for JointTransform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[JointTransform: name: {0}, position: {1}, rotation: {2}]", self.joint, self.position, self.rotation)
     }
 }
 
@@ -79,10 +128,17 @@ pub struct KeyFrame {
 }
 
 impl KeyFrame {
-    pub fn new(time_stamp: f32, pose: Vec<JointTransform>) -> Self {
+    pub fn new(time_stamp: f32, pose: &Vec<JointTransform>) -> Self {
         KeyFrame {
             time_stamp: time_stamp,
-            pose: pose,
+            pose: pose.clone(),
+        }
+    }
+
+    pub fn print_keyframe(&self) {
+        println!("KeyFrame[{}]:", self.time_stamp);
+        for joint in &self.pose {
+            println!("\t{}", joint);
         }
     }
 }
@@ -93,16 +149,16 @@ pub struct AnimationData {
 }
 
 impl AnimationData {
-    pub fn new(key_frames: Vec<KeyFrame>) -> Self {
+    pub fn new(key_frames: &Vec<KeyFrame>) -> Self {
         AnimationData {
-            key_frames: key_frames,
+            key_frames: key_frames.clone(),
         }
     }
-}
 
-#[derive(Clone)]
-pub struct AnimatedMesh {
-    pub internal_mesh: Mesh,
-    pub skeleton: Joint,
-    pub animations: Vec<AnimationData>,
+    pub fn print_animation(&self) {
+        println!("AnimationData:");
+        for key_frame in &self.key_frames {
+            key_frame.print_keyframe();
+        }
+    }
 }

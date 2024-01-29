@@ -47,10 +47,14 @@ impl Renderable for RenderableObject {
     }
 
     fn render(&self, layer: &GraphicsLayer) {
-        self.mesh.shader_program.use_program(true);
+        let shader_program = match &self.mesh {
+            Mesh::StaticMesh(mesh) => &mesh.shader_program,
+            Mesh::AnimatedMesh(mesh) => &mesh.shader_program,
+        };
+
+        shader_program.use_program(true);
         let mvp = layer.view.get_view_matrix() * layer.get_graphics_layer_matrix() * self.get_model_matrix();
-        
-        self.mesh.shader_program.set_uniform_mat4_f32("mvp", &mvp);
+        shader_program.set_uniform_mat4_f32("mvp", &mvp);
 
         for i in 0..self.texture_array.len() {
             self.texture_array[i].bind(i as u32, true)
@@ -67,7 +71,13 @@ impl Renderable for RenderableObject {
             temp_texture.as_ref().unwrap().bind(0, true);
         }
 
-        self.mesh.render();
+        match &self.mesh {
+            Mesh::StaticMesh(mesh) => mesh.render(),
+            Mesh::AnimatedMesh(mesh) => {
+                shader_program.set_uniform_vec_mat4_f32("bones", &mesh.skeleton.get_joint_matrices());
+                mesh.render();
+            },
+        }
 
         if temp_texture.is_some() {
             temp_texture.as_ref().unwrap().bind(0, false);
@@ -78,6 +88,6 @@ impl Renderable for RenderableObject {
             self.texture_array[i].bind(i as u32, false)
         }
 
-        self.mesh.shader_program.use_program(false);
+        shader_program.use_program(false);
     }
 }

@@ -1,4 +1,5 @@
 use graphics::math::Deg;
+use graphics::shader;
 use winit::{event::*, keyboard::*};
 use glam::*;
 use graphics::color::*;
@@ -28,7 +29,7 @@ impl Entity for Model {
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
-        self.renderable.rotation.x += 0.01;
+        self.renderable.rotation.x += 1.0;
     }
 
     fn exit(&mut self) {
@@ -40,11 +41,19 @@ struct Application;
 
 impl EventLoopHandler for Application {
     fn init(&self, entity_manager: &mut Box<EntityManager>) {
+        let shader_program = ShaderProgram::default_shader_program();
+        let animated_mesh_data = AnimatedMeshData::from_collada("./res/model.dae");
+        let mut animated_mesh = animated_mesh_data.build(&shader_program);
+
+        animated_mesh.skeleton.apply_keyframe(&animated_mesh.animations[0].key_frames[3]);
+
         let model = Model {
             renderable: RenderableObject::new(
-                Mesh::new_collada("./res/model.dae"), 
+                Mesh::AnimatedMesh(
+                    animated_mesh
+                ),
                 &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(0.0, 3.0, 0.0), 
+                &Vec3::new(0.0, 0.0, 0.0), 
                 &Vec3::new(1.0, 1.0, 1.0)
             )
         };
@@ -71,11 +80,11 @@ fn main() {
         Vec3::new(0.0, 0.0, -20.0), 
         Vec3::new(0.0, 0.0, 1.0), 
         Vec3::new(0.0, 1.0, 0.0), 
-        Deg(45.0)
+        45.0,
     ));
 
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2, &graphics).unwrap();
-    //window.run_at_20_ticks_with_frames(&app, 20);
-    window.run_at_20_ticks_with_frames(&app, 2000);
+    window.run_at_20_ticks_with_frames(&app, 20);
+    //window.run_at_20_ticks_with_frames(&app, 2000);
 }

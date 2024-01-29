@@ -10,3 +10,4 @@ pub mod texture;
 pub mod color;
 pub mod animation;
 pub mod math;
+pub mod collada;
