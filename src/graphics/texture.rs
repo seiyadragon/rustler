@@ -1,20 +1,15 @@
-use core::slice;
-use std::ptr::null_mut;
-
 use gl::types::*;
-use glm::Vector2;
-use image::{io::Reader, DynamicImage, EncodableLayout, RgbaImage};
+use glam::IVec2;
+use image::{io::Reader, RgbaImage};
 
 use crate::ColorBuffer;
-
-use super::color::{Color, self};
 
 pub struct Texture {
     pub texture_id: GLuint,
 }
 
 impl Texture {
-    pub fn from_vec(size: Vector2<i32>, image_data: &Vec<u8>) -> Self {
+    pub fn from_vec(size: &IVec2, image_data: &Vec<u8>) -> Self {
         let mut texture: GLuint = 0;
 
         unsafe {
@@ -39,18 +34,18 @@ impl Texture {
     }
 
     pub fn from_color_buffer(color_buffer: &ColorBuffer) -> Texture {
-        Texture::from_vec(Vector2::<i32>::new(color_buffer.width as i32, color_buffer.height as i32), &color_buffer.to_byte_vec())
+        Texture::from_vec(&IVec2::new(color_buffer.width as i32, color_buffer.height as i32), &color_buffer.to_byte_vec())
     }
 
-    pub fn from_image(image: RgbaImage) -> Self {
+    pub fn from_image(image: &RgbaImage) -> Self {
         let data_array = image.as_raw();
-        let size = Vector2::<i32>::new(image.width() as i32, image.height() as i32);
+        let size = IVec2::new(image.width() as i32, image.height() as i32);
         
-        Self::from_vec(size, data_array)
+        Self::from_vec(&size, data_array)
     }
 
     pub fn from_file(file: &str) -> Self {
-        Self::from_image(Reader::open(file).unwrap().decode().unwrap().into_rgba8())
+        Self::from_image(&Reader::open(file).unwrap().decode().unwrap().into_rgba8())
     }
 
     pub fn bind(&self, unit_slot: u32, should_bind: bool) {
@@ -96,14 +91,14 @@ impl Texture {
         height as u32
     }
 
-    pub fn get_sub_texture(&self, position: Vector2<i32>, size: Vector2<i32>) -> Self {
+    pub fn get_sub_texture(&self, position: &IVec2, size: &IVec2) -> Self {
         let binding = Vec::<u8>::new();
 
         unsafe {
             gl::TexSubImage2D(self.texture_id, 0, position.x, position.y, size.x, size.y, gl::RGBA, gl::UNSIGNED_BYTE, binding.as_ptr() as *const std::ffi::c_void);
         }
 
-        Texture::from_vec(size, &binding)
+        Texture::from_vec(&size, &binding)
     }
 
     pub fn get_color_buffer(&self) -> ColorBuffer {
@@ -119,7 +114,7 @@ impl Texture {
             data.set_len((width * height * 4) as usize);
         }
 
-        ColorBuffer::from_byte_vec(width, height, data)
+        ColorBuffer::from_byte_vec(width, height, &data)
     }
 
     pub fn delete(&self) -> ColorBuffer {

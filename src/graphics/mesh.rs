@@ -1,22 +1,10 @@
-use std::any::Any;
-use std::borrow::Borrow;
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::mem;
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::path;
-use std::rc::Rc;
 use std::slice;
+use gl::types::GLint;
+use glam::{Vec2, Vec3, Mat4};
+use dae_parser::*;
 use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
-use super::math::MatrixBuilder;
-use gl::types::GLint;
-use glm::Vec2;
-use glm::Vec3;
-use dae_parser::*;
-use glm::Vec4;
-use glm::Vector3;
 use crate::graphics::animation::*;
 
 #[derive(Clone)]
@@ -74,7 +62,7 @@ impl MeshData {
                                 let y = positions[i * 3 + 1];
                                 let z = positions[i * 3 + 2];
 
-                                vertices.push(Vertex::new(Vec3::new(x, y, z), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)));
+                                vertices.push(Vertex::new(&Vec3::new(x, y, z), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)));
                             }
                         },
                         _ => {},
@@ -158,7 +146,7 @@ impl MeshData {
                 let mut normal_offset = 1 as usize;
                 let mut texture_offset = 2 as usize;
                 let mut color_offset = 3 as usize;
-                let mut found_semantics: Vector3<bool> = Vector3::new(false, false, false);
+                let mut found_semantics: (bool, bool, bool) = (false, false, false);
 
                 let mut max_offset = stride - 1;
                 for input in inputs.iter() {
@@ -167,17 +155,17 @@ impl MeshData {
 
                     if semantic == "NORMAL" {
                         normal_offset = offset;
-                        found_semantics.x = true;
+                        found_semantics.0 = true;
                     }
 
                     if semantic == "TEXCOORD" {
                         texture_offset = offset;
-                        found_semantics.y = true;
+                        found_semantics.1 = true;
                     }
 
                     if semantic == "COLOR" {
                         color_offset = offset;
-                        found_semantics.z = true;
+                        found_semantics.2 = true;
                     }
 
                     if offset > max_offset {
@@ -190,15 +178,15 @@ impl MeshData {
                 for i in (0..prim_vec.len()).step_by(stride) {
                     indices.push(prim_vec[i]);
 
-                    if found_semantics.x {
+                    if found_semantics.0 {
                         normal_indices.push(prim_vec[i + normal_offset]);
                     }
 
-                    if found_semantics.y {
+                    if found_semantics.1 {
                         texture_indices.push(prim_vec[i + texture_offset]);
                     }
 
-                    if found_semantics.z {
+                    if found_semantics.2 {
                         color_indices.push(prim_vec[i + color_offset]);
                     }
                 }
@@ -336,7 +324,7 @@ impl MeshData {
                                 max_weights_ids[index] = bone_ids[max_weight_index];
                             }
 
-                            final_bone_weights = glm::normalize(max_weights);
+                            final_bone_weights = final_bone_weights.normalize();
                             final_bone_ids = max_weights_ids;
                         }
 
@@ -356,9 +344,9 @@ impl MeshData {
                 let mut joint = Joint {
                     id: 0,
                     name: name.clone(),
-                    local_bind_transform: MatrixBuilder::identity(1.0), // initialize with identity matrix
+                    local_bind_transform: Mat4::IDENTITY, // initialize with identity matrix
                     children: Vec::new(),
-                    inverse_bind_transform: MatrixBuilder::identity(1.0), // initialize with identity matrix
+                    inverse_bind_transform: Mat4::IDENTITY, // initialize with identity matrix
                 };
 
                 for i in 0..joint_list.len() {
@@ -372,7 +360,7 @@ impl MeshData {
                     if let Transform::Matrix(matrix) = transform {
                         let matrix = matrix.clone();
                         let matrix_data = (*matrix.0).clone();
-                        let mut matrix_data_vecs: [Vec4; 4] = [Vec4::new(0.0, 0.0, 0.0, 0.0); 4];
+                        let mut matrix_data_vecs: [[f32; 4]; 4] = [[0.0; 4]; 4];
 
                         for x in 0..4 {
                             for y in 0..4 {
@@ -380,7 +368,7 @@ impl MeshData {
                             }
                         }
 
-                        joint.local_bind_transform = glm::Mat4::from_array(&matrix_data_vecs).clone();
+                        joint.local_bind_transform = Mat4::from_cols_array_2d(&matrix_data_vecs).clone();
                     }
                 }
 
@@ -395,9 +383,9 @@ impl MeshData {
         let mut final_root_joint = Joint {
             id: 0,
             name: "".to_string(),
-            local_bind_transform: MatrixBuilder::identity(1.0),
+            local_bind_transform: Mat4::IDENTITY,
             children: Vec::new(),
-            inverse_bind_transform: MatrixBuilder::identity(1.0),
+            inverse_bind_transform: Mat4::IDENTITY,
         };
 
         // Call the post-order traversal function
@@ -408,9 +396,9 @@ impl MeshData {
                         let mut root_joint = Joint {
                             id: 0,
                             name: "".to_string(),
-                            local_bind_transform: MatrixBuilder::identity(1.0),
+                            local_bind_transform: Mat4::IDENTITY,
                             children: Vec::new(),
-                            inverse_bind_transform: MatrixBuilder::identity(1.0),
+                            inverse_bind_transform: Mat4::IDENTITY,
                         };
 
                         post_order_traversal(&child, &mut root_joint, &joints);
@@ -421,7 +409,74 @@ impl MeshData {
         }
 
         final_root_joint.calculate_inverse_bind_transform(final_root_joint.local_bind_transform.clone());
+        
+        //todo: Load animation section data.
+        let mut animation_joint_names: Vec<Vec<String>> = Vec::new();
+        let mut animation_times: Vec<Vec<f32>> = Vec::new();
+        let mut animation_transforms: Vec<Vec<Mat4>> = Vec::new();
 
+        for animation in doc.iter::<Animation>() {
+            let mut joint_names: Vec<String> = Vec::new();
+            let mut times: Vec<f32> = Vec::new();
+            let mut transforms: Vec<Mat4> = Vec::new();
+
+            for channel in &animation.channel {
+                let target = channel.target.to_string().clone();
+
+                let mut joint_name = String::new();
+
+                for i in 0..joints.len() {
+                    if target.contains(joints[i].name.as_str()) {
+                        joint_name = joints[i].name.clone();
+                        break;
+                    }
+                }
+                joint_names.push(joint_name);
+            }
+            
+            for source in &animation.source {
+                let array = source.array.clone().unwrap();
+
+                if source.id.clone().unwrap().contains("output") {
+                    let mut transform = Mat4::IDENTITY;
+
+                    match array {
+                        ArrayElement::Float(float_array) => {
+                            let float_array_data = float_array.to_vec();
+                            let mut float_array_data_vecs: [[f32; 4]; 4] = [[0.0; 4]; 4];
+
+                            for x in 0..4 {
+                                for y in 0..4 {
+                                    float_array_data_vecs[x][y] = float_array_data[x + y * 4];
+                                }
+                            }
+
+                            transform = Mat4::from_cols_array_2d(&float_array_data_vecs).clone();
+                        },
+                        _ => {},
+                    }
+                    transforms.push(transform);
+                }
+
+                else if source.id.clone().unwrap().contains("input") {
+                    match array {
+                        ArrayElement::Float(float_array) => {
+                            for i in 0..float_array.len() {
+                                times.push(float_array[i]);
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+            }
+
+            animation_joint_names.push(joint_names);
+            animation_times.push(times);
+            animation_transforms.push(transforms);
+        }
+
+        println!("---------------------------------");
+        println!("---------------------------------");
         println!("Joints: {}", &joints.len());
         for joint in &joints {
             println!("Joint: {}", joint.name);
@@ -429,25 +484,31 @@ impl MeshData {
         println!("---------------------------------");
         println!("---------------------------------");
         final_root_joint.print_joint("-");
-        
-        //todo: Load animation section data.
-        let animation_times: Vec<f32> = Vec::new();
-        for animation in doc.iter::<Animation>() {
-            for source in &animation.sources() {
-                if source.id.clone().unwrap().contains("input") {
-                    
-               }
+        println!("---------------------------------");
+        println!("---------------------------------");
+        for i in 0..animation_joint_names.len() {
+            for j in 0..animation_joint_names[i].len() {
+                println!("Joint: {}", animation_joint_names[i][j]);
+            }
+            for j in 0..animation_times[i].len() {
+                println!("Time: {}", animation_times[i][j]);
+
+                for k in 0..animation_transforms[j].len() {
+                    println!("Transform: {}", animation_transforms[j][k]);
+                }
             }
         }
+        println!("---------------------------------");
+        println!("---------------------------------");
 
         MeshData::new(&vertices, &indices)
     }
 
     pub fn generate_triangle_data() -> MeshData {
         let vertices = [
-            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-		    Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-		    Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.5, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+		    Vertex::new(&Vec3::new(-1.0, -1.0, 0.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+		    Vertex::new(&Vec3::new(1.0, -1.0, 0.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
         ];
 
         let indices = [0, 1, 2];
@@ -457,10 +518,10 @@ impl MeshData {
 
     pub fn generate_plane_data() -> MeshData {
         let vertices = [
-            Vertex::new(Vec3::new(-1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(-1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(-1.0, -1.0, 0.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(1.0, -1.0, 0.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(1.0, 1.0, 0.0), &Vec3::new(1.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
         ];
     
         let indices = [0, 1, 2, 2, 3, 0];
@@ -471,16 +532,16 @@ impl MeshData {
     pub fn generate_cube_data() -> MeshData {
         let vertices = [
             // Front face
-            Vertex::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)), // 0
-            Vertex::new(Vec3::new(1.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.25, 0.0, 0.0)), // 1
-            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.25, 0.25, 0.0)), // 2
-            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.25, 0.0)), // 3
+            Vertex::new(&Vec3::new(1.0, 1.0, 1.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)), // 0
+            Vertex::new(&Vec3::new(1.0, 1.0, -1.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.25, 0.0, 0.0)), // 1
+            Vertex::new(&Vec3::new(1.0, -1.0, 1.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.25, 0.25, 0.0)), // 2
+            Vertex::new(&Vec3::new(1.0, -1.0, -1.0), &Vec3::new(1.0, 0.0, 0.0), &Vec3::new(0.0, 0.25, 0.0)), // 3
 
             // Back face
-            Vertex::new(Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0)), // 4
-            Vertex::new(Vec3::new(-1.0, 1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.75, 0.0, 0.0)), // 5
-            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.75, 0.25, 0.0)), // 6
-            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.25, 0.0)), // 7
+            Vertex::new(&Vec3::new(-1.0, 1.0, 1.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.5, 0.0, 0.0)), // 4
+            Vertex::new(&Vec3::new(-1.0, 1.0, -1.0), &Vec3::new(1.0, 0.0, 0.0), &Vec3::new(0.75, 0.0, 0.0)), // 5
+            Vertex::new(&Vec3::new(-1.0, -1.0, 1.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.75, 0.25, 0.0)), // 6
+            Vertex::new(&Vec3::new(-1.0, -1.0, -1.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.5, 0.25, 0.0)), // 7
         ];
 
         let indices = [
@@ -510,11 +571,11 @@ impl MeshData {
     pub fn generate_triangle_pyramid_data() -> MeshData {
         let vertices = [
             // Base vertices (same as the triangle)
-            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.5, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(-1.0, -1.0, 0.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(1.0, -1.0, 0.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
             // Apex vertex
-            Vertex::new(Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(0.0, 0.0, 1.0), &Vec3::new(0.5, 0.5, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
         ];
 
         // Define the indices for the pyramid
@@ -535,12 +596,12 @@ impl MeshData {
     pub fn generate_square_pyramid_data() -> MeshData {
         let vertices = [
             // Base vertices
-            Vertex::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
-            Vertex::new(Vec3::new(-1.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(-1.0, -1.0, -1.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(1.0, -1.0, -1.0), &Vec3::new(1.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(1.0, -1.0, 1.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(-1.0, -1.0, 1.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
             // Apex vertex
-            Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+            Vertex::new(&Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.5, 0.5, 0.0), &Vec3::new(0.0, 0.0, 0.0)),
         ];
 
         // Define the indices for the pyramid
@@ -602,7 +663,7 @@ impl MeshData {
             let v = uv_vec2.y;
     
             // Create a new vertex and push it to the vector
-            let vertex = Vertex::new(Vec3::new(x, y, z), Vec3::new(u, v, 0.0), Vec3::new(0.0, 0.0, 0.0));
+            let vertex = Vertex::new(&Vec3::new(x, y, z), &Vec3::new(u, v, 0.0), &Vec3::new(0.0, 0.0, 0.0));
             vertices.push(vertex);
         }
     

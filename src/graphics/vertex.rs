@@ -1,6 +1,7 @@
 use core::fmt;
 use std::ffi::{c_void, CString};
 use gl::types::*;
+use glam::Vec3;
 
 use super::shader::ShaderProgram;
 
@@ -14,23 +15,23 @@ pub const FLOAT_SIZE: isize = unsafe {
 
 #[derive(Clone, Copy)]
 pub struct Vertex {
-    pub position: glm::Vec3,
-    pub texture: glm::Vec3,
-    pub normals: glm::Vec3,
-    pub bone_ids: glm::Vec3,
-    pub bone_weights: glm::Vec3,
-    pub color: glm::Vec3,
+    pub position: Vec3,
+    pub texture: Vec3,
+    pub normals: Vec3,
+    pub bone_ids: Vec3,
+    pub bone_weights: Vec3,
+    pub color: Vec3,
 }
 
 impl Vertex {
-    pub fn new(position: glm::Vec3, texture: glm::Vec3, normals: glm::Vec3) -> Self {
+    pub fn new(position: &Vec3, texture: &Vec3, normals: &Vec3) -> Self {
         Vertex {
-            position: position,
-            texture: texture,
-            normals: normals,
-            bone_ids: glm::Vec3::new(0.0, 0.0, 0.0),
-            bone_weights: glm::Vec3::new(0.0, 0.0, 0.0),
-            color: glm::Vec3::new(1.0, 1.0, 1.0),
+            position: position.clone(),
+            texture: texture.clone(),
+            normals: normals.clone(),
+            bone_ids: Vec3::new(0.0, 0.0, 0.0),
+            bone_weights: Vec3::new(0.0, 0.0, 0.0),
+            color: Vec3::new(1.0, 1.0, 1.0),
         }
     }
 }

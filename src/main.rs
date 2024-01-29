@@ -1,6 +1,6 @@
-use graphics::view;
+use graphics::math::Deg;
 use winit::{event::*, keyboard::*};
-use glm::*;
+use glam::*;
 use graphics::color::*;
 use graphics::renderable::*;
 use graphics::view::*;
@@ -71,7 +71,7 @@ fn main() {
         Vec3::new(0.0, 0.0, -20.0), 
         Vec3::new(0.0, 0.0, 1.0), 
         Vec3::new(0.0, 1.0, 0.0), 
-        45.0
+        Deg(45.0)
     ));
 
     let app = Application{};

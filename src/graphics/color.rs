@@ -1,6 +1,5 @@
 
-use glm::Vec4;
-use glm::Vec3;
+use glam::{Vec3, Vec4};
 use image::RgbaImage;
 use image::io::Reader;
 
@@ -24,7 +23,7 @@ impl Color {
         }
     }
 
-    pub fn from_vec4(vec: Vec4) -> Self {
+    pub fn from_vec4(vec: &Vec4) -> Self {
         Color {
             r: (vec.x * 256.0) as u8,
             g: (vec.y * 256.0) as u8,
@@ -33,7 +32,7 @@ impl Color {
         }
     }
 
-    pub fn from_vec3(vec: Vec3) -> Self {
+    pub fn from_vec3(vec: &Vec3) -> Self {
         Color {
             r: (vec.x * 256.0) as u8,
             g: (vec.y * 256.0) as u8,
@@ -91,7 +90,7 @@ impl ColorBuffer {
         }
     }
 
-    pub fn from_byte_vec(width: u32, height: u32, byte_vec: Vec<u8>) -> ColorBuffer {
+    pub fn from_byte_vec(width: u32, height: u32, byte_vec: &Vec<u8>) -> ColorBuffer {
         let mut color_vec = Vec::<Color>::new();
 
         for i in 0..width*height {
@@ -105,14 +104,14 @@ impl ColorBuffer {
         }
     }
 
-    pub fn from_image(image: RgbaImage) -> Self {
+    pub fn from_image(image: &RgbaImage) -> Self {
         let data_array = image.as_raw();
         
-        Self::from_byte_vec(image.width(), image.height(), data_array.clone())
+        Self::from_byte_vec(image.width(), image.height(), &data_array.clone())
     }
 
     pub fn from_file(file: &str) -> Self {
-        Self::from_image(Reader::open(file).unwrap().decode().unwrap().into_rgba8())
+        Self::from_image(&Reader::open(file).unwrap().decode().unwrap().into_rgba8())
     }
 
     pub fn to_byte_vec(&self) -> Vec<u8> {

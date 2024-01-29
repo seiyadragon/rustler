@@ -1,13 +1,12 @@
-use crate::{graphics::math::MatrixBuilder, Mesh};
-use glm::Vec3;
-use super::math::Quaternion;
+use crate::Mesh;
+use glam::{Vec3, Mat4, Quat};
 
 pub struct Joint {
     pub id: i32,
     pub name: String,
     pub children: Vec<Box<Joint>>,
-    pub local_bind_transform: glm::Mat4,
-    pub inverse_bind_transform: glm::Mat4,
+    pub local_bind_transform: Mat4,
+    pub inverse_bind_transform: Mat4,
 }
 
 impl Joint {
@@ -16,8 +15,8 @@ impl Joint {
             id: id,
             name: name,
             children: Vec::new(),
-            local_bind_transform: MatrixBuilder::identity(1.0),
-            inverse_bind_transform: MatrixBuilder::identity(1.0),
+            local_bind_transform: Mat4::IDENTITY,
+            inverse_bind_transform: Mat4::IDENTITY,
         }
     }
 
@@ -25,9 +24,9 @@ impl Joint {
         self.children.push(Box::new(child));
     }
 
-    pub fn calculate_inverse_bind_transform(&mut self, parent_bind_transform: glm::Mat4) {
+    pub fn calculate_inverse_bind_transform(&mut self, parent_bind_transform: Mat4) {
         let bind_transform = parent_bind_transform * self.local_bind_transform;
-        self.inverse_bind_transform = glm::inverse(&bind_transform);
+        self.inverse_bind_transform = self.local_bind_transform.inverse();
 
         for child in &mut self.children {
             child.calculate_inverse_bind_transform(bind_transform);
@@ -61,11 +60,11 @@ impl Clone for Joint {
 #[derive(Clone, Copy)]
 pub struct JointTransform {
     pub position: Vec3,
-    pub rotation: Quaternion,
+    pub rotation: Quat,
 }
 
 impl JointTransform {
-    pub fn new(position: Vec3, rotation: Quaternion) -> Self {
+    pub fn new(position: Vec3, rotation: Quat) -> Self {
         JointTransform {
             position: position,
             rotation: rotation,
@@ -105,5 +104,5 @@ impl AnimationData {
 pub struct AnimatedMesh {
     pub internal_mesh: Mesh,
     pub skeleton: Joint,
-    pub animation: AnimationData,
+    pub animations: Vec<AnimationData>,
 }

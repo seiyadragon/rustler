@@ -1,10 +1,7 @@
-use glm::Vec2;
-use glm::Vec3;
-use glm::Mat4;
-
+use glam::{Vec2, Vec3, Mat4};
 use super::color::Color;
 use super::renderable::Renderable;
-use super::math::MatrixBuilder;
+use super::math::Deg;
 
 #[derive(Clone)]
 pub struct View {
@@ -12,11 +9,11 @@ pub struct View {
     pub position: Vec3,
     pub front: Vec3,
     pub up: Vec3,
-    pub fov: f32,
+    pub fov: Deg,
 }
 
 impl View {
-    pub fn new(size: Vec2, position: Vec3, front: Vec3, up: Vec3, fov: f32) -> Self {
+    pub fn new(size: Vec2, position: Vec3, front: Vec3, up: Vec3, fov: Deg) -> Self {
         View {
             size: size,
             position: position,
@@ -27,7 +24,14 @@ impl View {
     }
 
     pub fn get_view_matrix(&self) -> Mat4 {
-        MatrixBuilder::perspective(self.fov, self.size, Vec2::new(0.1, 100.0)) * MatrixBuilder::look_at(self.position, self.front, self.up)
+        Mat4::perspective_rh_gl(
+            self.fov.to_radians().as_float(), 
+            self.size.x / self.size.y, 0.1, 100.0
+        ) * Mat4::look_at_lh(
+            self.position, 
+            self.front, 
+            self.up
+        )
     }
 }
 
@@ -56,9 +60,15 @@ impl GraphicsLayer {
     }
 
     pub fn get_graphics_layer_matrix(&self) -> Mat4 {
-        let translation = MatrixBuilder::translation(self.position);
-        let rotation = MatrixBuilder::rotation(self.rotation);
-        let scale = MatrixBuilder::scale(self.scale);
+        let translation = Mat4::from_translation(self.position);
+
+        let rotation_x = Mat4::from_rotation_x(Deg(self.rotation.x).to_radians().as_float());
+        let rotation_y = Mat4::from_rotation_y(Deg(self.rotation.y).to_radians().as_float());
+        let rotation_z = Mat4::from_rotation_z(Deg(self.rotation.z).to_radians().as_float());
+
+        let rotation = rotation_x * rotation_y * rotation_z;
+
+        let scale = Mat4::from_scale(self.scale);
 
         if self.parent.as_ref().is_some() {
             let parent_matrix = self.parent.as_ref().unwrap().get_graphics_layer_matrix();

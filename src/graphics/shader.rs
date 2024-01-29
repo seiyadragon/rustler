@@ -1,10 +1,9 @@
 use gl::types::*;
-use glm::{Vec2, Vec3, Vec4, Vector2, Vector3, Vector4, Matrix4};
+use glam::{Vec2, Vec3, Vec4, IVec2, IVec3, IVec4, Mat4};
 use core::fmt;
 use std::{error::Error, ptr::{null, null_mut}};
 use std::ffi::CString;
 use std::str;
-use glm::Mat4;
 
 pub const DEFAULT_VERTEX_SHADER: &str = "
     #version 450 core
@@ -79,16 +78,16 @@ pub struct ShaderSource {
 }
 
 impl ShaderSource {
-    pub fn from_source_string(shader_type: ShaderType, shader_source: &str) -> ShaderSource {
+    pub fn from_source_string(shader_type: &ShaderType, shader_source: &str) -> ShaderSource {
         ShaderSource { 
-            shader_type: shader_type, 
+            shader_type: shader_type.clone(), 
             shader_src: String::from(shader_source),
         }
     }
 
-    pub fn new(shader_type: ShaderType) -> ShaderSource {
+    pub fn new(shader_type: &ShaderType) -> ShaderSource {
         ShaderSource { 
-            shader_type: shader_type, 
+            shader_type: shader_type.clone(), 
             shader_src: String::from("#version 450 core\n"),
         }
     }
@@ -96,10 +95,10 @@ impl ShaderSource {
     pub fn default_shader_source(shader_type: ShaderType) -> ShaderSource {
         match shader_type {
             ShaderType::VERTEX => {
-                ShaderSource::from_source_string(ShaderType::VERTEX, DEFAULT_VERTEX_SHADER)
+                ShaderSource::from_source_string(&ShaderType::VERTEX, DEFAULT_VERTEX_SHADER)
             }
             ShaderType::FRAGMENT => {
-                ShaderSource::from_source_string(ShaderType::FRAGMENT, DEFAULT_FRAGMENT_SHADER)
+                ShaderSource::from_source_string(&ShaderType::FRAGMENT, DEFAULT_FRAGMENT_SHADER)
             }
             ShaderType::GEOMETRY => {
                 todo!();
@@ -160,7 +159,7 @@ impl CompiledShader {
             gl::DeleteShader(self.shader_id);
         }
 
-        ShaderSource::from_source_string(self.shader_type, &self.shader_src.as_str())
+        ShaderSource::from_source_string(&self.shader_type, &self.shader_src.as_str())
     }
 
     pub fn default_vertex_shader() -> Result<CompiledShader, ShaderError> {
@@ -228,8 +227,8 @@ impl ShaderProgram {
         }
     }
 
-    pub fn attach_shader(&mut self, shader: CompiledShader) {
-        self.compiled_shader_list.push(shader);
+    pub fn attach_shader(&mut self, shader: &CompiledShader) {
+        self.compiled_shader_list.push(shader.clone());
     }
 
     pub fn build(&mut self) {
@@ -274,8 +273,8 @@ impl ShaderProgram {
         let vertex_shader = CompiledShader::default_vertex_shader().unwrap();
         let fragment_shader = CompiledShader::default_fragment_shader().unwrap();
 
-        program.attach_shader(vertex_shader);
-        program.attach_shader(fragment_shader);
+        program.attach_shader(&vertex_shader);
+        program.attach_shader(&fragment_shader);
 
         program.build();
 
@@ -294,7 +293,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_vec2_f32(&self, name: &str, value: Vec2) {
+    pub fn set_uniform_vec2_f32(&self, name: &str, value: &Vec2) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -306,7 +305,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_vec3_f32(&self, name: &str, value: Vec3) {
+    pub fn set_uniform_vec3_f32(&self, name: &str, value: &Vec3) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -318,7 +317,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_vec4_f32(&self, name: &str, value: Vec4) {
+    pub fn set_uniform_vec4_f32(&self, name: &str, value: &Vec4) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -330,21 +329,13 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_mat4_f32(&self, name: &str, value: Mat4) {
+    pub fn set_uniform_mat4_f32(&self, name: &str, value: &Mat4) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
 
         unsafe {
-            let array: [[f32; 4]; 4] = [
-                value.c0.as_array().clone(),
-                value.c1.as_array().clone(),
-                value.c2.as_array().clone(),
-                value.c3.as_array().clone(),
-            ];
-            let array_ptr: *const f32 = std::mem::transmute(&array);
-
-            gl::UniformMatrix4fv(gl::GetUniformLocation(self.program_id, c_str.as_ptr()), 1, gl::FALSE, array_ptr);
+            gl::UniformMatrix4fv(gl::GetUniformLocation(self.program_id, c_str.as_ptr()), 1, gl::FALSE, &value.to_cols_array()[0]);
         }
 
         self.use_program(false);
@@ -374,7 +365,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_vec2_i32(&self, name: &str, value: Vector2<i32>) {
+    pub fn set_uniform_vec2_i32(&self, name: &str, value: &IVec2) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -386,7 +377,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_vec3_i32(&self, name: &str, value: Vector3<i32>) {
+    pub fn set_uniform_vec3_i32(&self, name: &str, value: &IVec3) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
@@ -398,7 +389,7 @@ impl ShaderProgram {
         self.use_program(false);
     }
 
-    pub fn set_uniform_vec4_i32(&self, name: &str, value: Vector4<i32>) {
+    pub fn set_uniform_vec4_i32(&self, name: &str, value: &IVec4) {
         let c_str = CString::new(name.as_bytes()).unwrap();
 
         self.use_program(true);
