@@ -17,6 +17,8 @@ mod util;
 
 struct Model {
     renderable: RenderableObject,
+    current_keyframe: usize,
+    max_keyframes: usize,
 }
 
 impl Entity for Model {
@@ -25,11 +27,25 @@ impl Entity for Model {
     }
 
     fn render(&mut self, graphics: &mut GraphicsLayer) {
+        let mesh: Option<&mut AnimatedMesh> = match self.renderable.mesh {
+            Mesh::StaticMesh(ref mut mesh) => None,
+            Mesh::AnimatedMesh(ref mut mesh) => Some(mesh),
+        };
+
+        let animated_mesh = mesh.unwrap();
+
+        animated_mesh.animation.apply_keyframe_to_joints(self.current_keyframe, &mut animated_mesh.skeleton, &Mat4::IDENTITY);
+
         graphics.render_object(&mut self.renderable);
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
         self.renderable.rotation.x += 1.0;
+
+        self.current_keyframe += 1;
+        if self.current_keyframe >= self.max_keyframes {
+            self.current_keyframe = 0;
+        }
     }
 
     fn exit(&mut self) {
@@ -45,18 +61,31 @@ impl EventLoopHandler for Application {
         let animated_mesh_data = AnimatedMeshData::from_collada("./res/model.dae");
         let mut animated_mesh = animated_mesh_data.build(&shader_program);
 
-        animated_mesh.skeleton.apply_keyframe(&animated_mesh.animations[0].key_frames[3]);
+        //animated_mesh.animation.apply_keyframe_to_joints(0, &mut animated_mesh.skeleton, &Mat4::IDENTITY);
 
         let model = Model {
             renderable: RenderableObject::new(
                 Mesh::AnimatedMesh(
-                    animated_mesh
+                    animated_mesh.clone()
+                ),
+                &Vec3::new(0.0, 0.0, 0.0), 
+                &Vec3::new(0.0, 0.0, 0.0), 
+                &Vec3::new(1.0, 1.0, 1.0)
+            ),
+            current_keyframe: 0,
+            max_keyframes: (&animated_mesh.animation.key_frames.len()).clone(),
+        };
+
+        /*let model = Model {
+            renderable: RenderableObject::new(
+                Mesh::StaticMesh(
+                    StaticMeshData::from_collada("./res/model.dae").build(&shader_program)
                 ),
                 &Vec3::new(0.0, 0.0, 0.0), 
                 &Vec3::new(0.0, 0.0, 0.0), 
                 &Vec3::new(1.0, 1.0, 1.0)
             )
-        };
+        };*/
 
         entity_manager.push(Box::new(model));
     }

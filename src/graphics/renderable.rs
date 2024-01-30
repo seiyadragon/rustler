@@ -60,28 +60,18 @@ impl Renderable for RenderableObject {
             self.texture_array[i].bind(i as u32, true)
         }
 
-        let mut temp_texture: Option<Texture> = None;
-
         if self.texture_array.len() == 0 {
-            let color_buffer = ColorBuffer::new(64, 64, &Color::from_hex(0xffffffff));
-            temp_texture = Some(color_buffer.build_texture());
-        }
-
-        if temp_texture.is_some() {
-            temp_texture.as_ref().unwrap().bind(0, true);
+            shader_program.set_uniform_bool("should_sample_texture", false);
+        } else {
+            shader_program.set_uniform_bool("should_sample_texture", true);
         }
 
         match &self.mesh {
             Mesh::StaticMesh(mesh) => mesh.render(),
             Mesh::AnimatedMesh(mesh) => {
-                shader_program.set_uniform_vec_mat4_f32("bones", &mesh.skeleton.get_joint_matrices());
+                shader_program.set_uniform_vec_mat4_f32("joint_transforms", &mesh.skeleton.get_global_transform_matrices());
                 mesh.render();
             },
-        }
-
-        if temp_texture.is_some() {
-            temp_texture.as_ref().unwrap().bind(0, false);
-            temp_texture.as_ref().unwrap().delete();
         }
 
         for i in 0..self.texture_array.len() {

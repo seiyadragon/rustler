@@ -6,6 +6,7 @@ pub struct Joint {
     pub children: Vec<Box<Joint>>,
     pub local_bind_transform: Mat4,
     pub inverse_bind_transform: Mat4,
+    pub animation_transform: Mat4,
 }
 
 impl Joint {
@@ -16,6 +17,7 @@ impl Joint {
             children: Vec::new(),
             local_bind_transform: Mat4::IDENTITY,
             inverse_bind_transform: Mat4::IDENTITY,
+            animation_transform: Mat4::IDENTITY,
         }
     }
 
@@ -24,9 +26,9 @@ impl Joint {
     }
 
     pub fn calculate_inverse_bind_transform(&mut self, parent_bind_transform: &Mat4) {
-        let bind_transform = parent_bind_transform.clone() * self.local_bind_transform;
-        self.inverse_bind_transform = self.local_bind_transform.inverse();
-
+        let bind_transform = *parent_bind_transform * self.local_bind_transform;
+        self.inverse_bind_transform = bind_transform.inverse();
+    
         for child in &mut self.children {
             child.calculate_inverse_bind_transform(&bind_transform);
         }
@@ -44,34 +46,17 @@ impl Joint {
         joints
     }
 
-    pub fn get_joint_matrices(&self) -> Vec<Mat4> {
+    pub fn get_global_transform_matrices(&self) -> Vec<Mat4> {
         let mut joint_matrices: Vec<Mat4> = Vec::new();
+        let animation_transform = self.animation_transform;
 
-        joint_matrices.push(self.inverse_bind_transform);
+        joint_matrices.push(animation_transform);
 
         for child in &self.children {
-            joint_matrices.append(&mut child.get_joint_matrices());
+            joint_matrices.append(&mut child.get_global_transform_matrices());
         }
 
         joint_matrices
-    }
-
-    pub fn apply_joint_transform(&mut self, joint_transform: &JointTransform) {
-        if self.name == joint_transform.joint {
-            let translation = Mat4::from_translation(joint_transform.position);
-            let rotation = Mat4::from_quat(joint_transform.rotation);
-            self.local_bind_transform = translation * rotation;
-        }
-
-        for child in &mut self.children {
-            child.apply_joint_transform(joint_transform);
-        }
-    }
-
-    pub fn apply_keyframe(&mut self, keyframe: &KeyFrame) {
-        for joint_transform in &keyframe.pose {
-            self.apply_joint_transform(joint_transform);
-        }
     }
 
     pub fn print_joint(&self, pre: &str) {
@@ -94,30 +79,37 @@ impl Clone for Joint {
             children: self.children.iter().map(|child| child.clone()).collect(),
             local_bind_transform: self.local_bind_transform.clone(),
             inverse_bind_transform: self.inverse_bind_transform.clone(),
+            animation_transform: self.animation_transform.clone(),
         }
     }
 }
 
 #[derive(Clone)]
 pub struct JointTransform {
-    pub joint: String,
+    pub joint_name: String,
     pub position: Vec3,
     pub rotation: Quat,
 }
 
 impl JointTransform {
-    pub fn new(joint: &str, position: &Vec3, rotation: &Quat) -> Self {
+    pub fn new(joint_name: &str, position: &Vec3, rotation: &Quat) -> Self {
         JointTransform {
-            joint: String::from(joint),
+            joint_name: String::from(joint_name),
             position: position.clone(),
             rotation: rotation.clone(),
         }
+    }
+
+    pub fn get_local_transform(&self) -> Mat4 {
+        let translation = Mat4::from_translation(self.position);
+        let rotation = Mat4::from_quat(self.rotation);
+        translation * rotation
     }
 }
 
 impl std::fmt::Display for JointTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[JointTransform: name: {0}, position: {1}, rotation: {2}]", self.joint, self.position, self.rotation)
+        write!(f, "[JointTransform({0}): position: {1}, rotation: {2}]", self.joint_name, self.position, self.rotation)
     }
 }
 
@@ -145,12 +137,21 @@ impl KeyFrame {
 
 #[derive(Clone)]
 pub struct AnimationData {
+    pub length: f32,
     pub key_frames: Vec<KeyFrame>,
 }
 
 impl AnimationData {
     pub fn new(key_frames: &Vec<KeyFrame>) -> Self {
+        let mut length = 0.0;
+        for key_frame in key_frames {
+            if key_frame.time_stamp > length {
+                length = key_frame.time_stamp;
+            }
+        }
+
         AnimationData {
+            length: length,
             key_frames: key_frames.clone(),
         }
     }
@@ -160,5 +161,19 @@ impl AnimationData {
         for key_frame in &self.key_frames {
             key_frame.print_keyframe();
         }
+    }
+
+    pub fn apply_keyframe_to_joints(&self, keyframe: usize, skeleton: &mut Joint, parent_transform: &Mat4) {
+        let mut joint_transforms: Vec<JointTransform> = self.key_frames[keyframe].pose.clone();
+
+        let current_local_pose = joint_transforms.iter().find(|joint| joint.joint_name == skeleton.name).unwrap().get_local_transform();
+        let mut current_global_pose = *parent_transform * current_local_pose;
+
+        for child in &mut skeleton.children {
+            self.apply_keyframe_to_joints(keyframe, child, &current_global_pose);
+        }
+
+        current_global_pose = current_global_pose * skeleton.inverse_bind_transform;
+        skeleton.animation_transform = current_global_pose;
     }
 }

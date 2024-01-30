@@ -260,10 +260,12 @@ impl ColladaLoader {
                         let mut bone_weights_indices: Vec<f32> = Vec::new();
 
                         for j in 0..vcount[i] {
-                            bone_ids.push(prim[last_vertex_weight_index + j as usize] as f32);
-                            bone_weights_indices.push(prim[last_vertex_weight_index + j as usize + 1] as f32);
+                            let index = prim[last_vertex_weight_index + 2 * j as usize] as usize;
+                            println!("Vertex[{0}]: {1}", i, index);
+                    
+                            bone_ids.push(index as f32);
+                            bone_weights_indices.push(prim[last_vertex_weight_index + 2 * j as usize + 1] as f32);
                         }
-
                         
                         let mut real_bone_weights: Vec<f32> = Vec::new();
                         for i in 0..bone_weights_indices.len() {
@@ -281,7 +283,7 @@ impl ColladaLoader {
                         }
 
                         else if vcount[i] >= 4 {
-                            let real_bone_weights_copy = real_bone_weights.clone();
+                            let mut real_bone_weights_copy = real_bone_weights.clone();
                             
                             let mut max_weights: Vec3 = Vec3::new(0.0, 0.0, 0.0);
                             let mut max_weights_ids: Vec3 = Vec3::new(0.0, 0.0, 0.0);
@@ -289,26 +291,39 @@ impl ColladaLoader {
                             for index in 0..3 {
                                 let mut max_weight = 0.0;
                                 let mut max_weight_index: usize = 0;
-
+                            
                                 for j in 0..real_bone_weights_copy.len() {
                                     if real_bone_weights_copy[j] > max_weight {
                                         max_weight = real_bone_weights_copy[j];
                                         max_weight_index = j;
                                     }
                                 }
-
+                            
                                 max_weights[index] = max_weight;
                                 max_weights_ids[index] = bone_ids[max_weight_index];
+                                real_bone_weights_copy[max_weight_index] = 0.0; // Set the max weight to 0
                             }
 
-                            final_bone_weights = final_bone_weights.normalize();
                             final_bone_ids = max_weights_ids;
+                            final_bone_weights = max_weights;
+
+                            let sum = final_bone_weights.x + final_bone_weights.y + final_bone_weights.z;
+                            if sum != 0.0 {
+                                final_bone_weights = Vec3::new(
+                                    final_bone_weights.x / sum,
+                                    final_bone_weights.y / sum,
+                                    final_bone_weights.z / sum,
+                                );
+                            }
                         }
 
                         vertices[i].bone_ids = final_bone_ids;
                         vertices[i].bone_weights = final_bone_weights;
 
-                        last_vertex_weight_index += vcount[i] as usize;
+                        println!("Vertex[{0}]: {1}", i, vertices[i].bone_ids);
+                        println!("Vertex[{0}]: {1}", i, vertices[i].bone_weights);
+
+                        last_vertex_weight_index += 2 * vcount[i] as usize;
                     }
                 }
                 ControlElement::Morph(morph) => {}
@@ -324,6 +339,7 @@ impl ColladaLoader {
                     local_bind_transform: Mat4::IDENTITY, // initialize with identity matrix
                     children: Vec::new(),
                     inverse_bind_transform: Mat4::IDENTITY, // initialize with identity matrix
+                    animation_transform: Mat4::IDENTITY, // initialize with identity matrix
                 };
 
                 for i in 0..joint_list.len() {
@@ -363,6 +379,7 @@ impl ColladaLoader {
             local_bind_transform: Mat4::IDENTITY,
             children: Vec::new(),
             inverse_bind_transform: Mat4::IDENTITY,
+            animation_transform: Mat4::IDENTITY,
         };
 
         // Call the post-order traversal function
@@ -376,6 +393,7 @@ impl ColladaLoader {
                             local_bind_transform: Mat4::IDENTITY,
                             children: Vec::new(),
                             inverse_bind_transform: Mat4::IDENTITY,
+                            animation_transform: Mat4::IDENTITY,
                         };
 
                         post_order_traversal(&child, &mut root_joint, &joints);
@@ -385,13 +403,14 @@ impl ColladaLoader {
             }
         }
 
-        final_root_joint.calculate_inverse_bind_transform(&final_root_joint.clone().local_bind_transform);
         (final_root_joint, joints)
     }
 
-    pub fn load_collada_animations(doc: &Document, joints: &Vec<Joint>) -> Vec<AnimationData> {
+    pub fn load_collada_animations(doc: &Document, joints: &Vec<Joint>) -> AnimationData {
         //todo: Load animation section data.
-        let mut animations: Vec<AnimationData> = Vec::new();
+        let mut animation_keyframes: Vec<KeyFrame> = Vec::new();
+        let mut time_transform_pairs: Vec<(f32, JointTransform)> = Vec::new();
+        let mut times_vec: Vec<f32> = Vec::new();
 
         for animation in doc.iter::<Animation>() {
             let mut joint_names: Vec<String> = Vec::new();
@@ -416,42 +435,49 @@ impl ColladaLoader {
                 let array = source.array.clone().unwrap();
 
                 if source.id.clone().unwrap().contains("output") {
-                    let mut transform: Option<JointTransform> = None;
 
                     match array {
                         ArrayElement::Float(float_array) => {
-                            let float_array_data = float_array.to_vec();
-                            let mut float_array_data_vecs: [[f32; 4]; 4] = [[0.0; 4]; 4];
-
-                            for x in 0..4 {
-                                for y in 0..4 {
-                                    float_array_data_vecs[x][y] = float_array_data[x + y * 4];
+                            for i in 0..float_array.len() / 16 {
+                                let mut float_array_data = [0.0; 16];
+                                for j in 0..16 {
+                                    float_array_data[j] = float_array[i * 16 + j];
                                 }
+
+                                let float_array_data = float_array_data.to_vec();
+                                let mut float_array_data_vecs: [[f32; 4]; 4] = [[0.0; 4]; 4];
+
+                                for x in 0..4 {
+                                    for y in 0..4 {
+                                        float_array_data_vecs[x][y] = float_array_data[x + y * 4];
+                                    }
+                                }
+
+                                let mat = Mat4::from_cols_array_2d(&float_array_data_vecs).clone();
+
+                                // Extract translation (position)
+                                let translation: Vec3 = mat.w_axis.truncate();
+                                // Extract scale
+                                let scale = glam::Vec3::new(
+                                    mat.x_axis.length(),
+                                    mat.y_axis.length(),
+                                    mat.z_axis.length(),
+                                );
+                                // Extract rotation as a quaternion
+                                let rotation_mat = Mat3::from_cols(
+                                    mat.x_axis.truncate() / scale.x,
+                                    mat.y_axis.truncate() / scale.y,
+                                    mat.z_axis.truncate() / scale.z,
+                                );
+
+                                let roation_quat: Quat = Quat::from_mat3(&rotation_mat);
+                                let transform = JointTransform::new(joint_names[0].as_str(), &translation, &roation_quat);
+
+                                transforms.push(transform);
                             }
-
-                            let mat = Mat4::from_cols_array_2d(&float_array_data_vecs).clone();
-
-                            // Extract translation (position)
-                            let translation: Vec3 = mat.w_axis.truncate();
-                            // Extract scale
-                            let scale = glam::Vec3::new(
-                                mat.x_axis.length(),
-                                mat.y_axis.length(),
-                                mat.z_axis.length(),
-                            );
-                            // Extract rotation as a quaternion
-                            let rotation_mat = Mat3::from_cols(
-                                mat.x_axis.truncate() / scale.x,
-                                mat.y_axis.truncate() / scale.y,
-                                mat.z_axis.truncate() / scale.z,
-                            );
-
-                            let roation_quat: Quat = Quat::from_mat3(&rotation_mat);
-                            transform = Some(JointTransform::new(joint_names[0].as_str(), &translation, &roation_quat));
                         },
                         _ => {},
                     }
-                    transforms.push(transform.unwrap());
                 }
 
                 else if source.id.clone().unwrap().contains("input") {
@@ -466,15 +492,42 @@ impl ColladaLoader {
                 }
             }
 
-            let mut animation_keyframes: Vec<KeyFrame> = Vec::new();
-
+            //combine time and transform data and add it to a full vec where we can retrieve into a keyframe based on the time value
             for i in 0..times.len() {
-                animation_keyframes.push(KeyFrame::new(times[i], &transforms.clone()));
+                let time = times[i];
+                let transform = transforms[i].clone();
+
+                time_transform_pairs.push((time, transform));
             }
 
-            animations.push(AnimationData::new(&animation_keyframes));
+            
+            times_vec.append(&mut times.clone());
+        }
+        
+        // Sort the time_transform_pairs by time
+        time_transform_pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        // Create keyframes from the sorted time_transform_pairs
+        let mut transforms_by_time: Vec<(f32, Vec<JointTransform>)> = Vec::new();
+
+        for (time, transform) in time_transform_pairs {
+            // Check if there is an existing entry with the same time
+            if let Some(entry) = transforms_by_time.iter_mut().find(|(t, _)| *t == time) {
+                // Add the joint transform to the existing entry
+                entry.1.push(transform);
+            } else {
+                // Create a new entry with the time and the joint transform
+                transforms_by_time.push((time, vec![transform]));
+            }
         }
 
-        animations
+        // Create the keyframes from the sorted time_transform_pairs
+        for (time, transforms) in transforms_by_time {
+            let keyframe = KeyFrame::new(time, &transforms);
+
+            animation_keyframes.push(keyframe);
+        }
+        
+        AnimationData::new(&animation_keyframes)
     }
 }

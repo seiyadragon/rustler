@@ -8,6 +8,9 @@ use std::str;
 pub const DEFAULT_VERTEX_SHADER: &str = "
     #version 450 core
 
+    const int MAX_BONES = 100;
+    const int MAX_WEIGHTS = 3;
+
     layout (location = 0) in vec3 in_position;
     layout (location = 1) in vec3 in_tex_coords;
     layout (location = 2) in vec3 in_normal;
@@ -19,17 +22,33 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
     out vec3 vertex_color;
 
     uniform mat4 mvp;
-
-    uniform mat4 bones[100];
+    uniform mat4 joint_transforms[MAX_BONES];
 
     void main() {
-        gl_Position = mvp * (
-            bones[highp int(in_bone_ids.x)] * vec4(in_position, 1.0) * in_bone_weights.x +
-            bones[highp int(in_bone_ids.y)] * vec4(in_position, 1.0) * in_bone_weights.y +
-            bones[highp int(in_bone_ids.z)] * vec4(in_position, 1.0) * in_bone_weights.z
-        );
+        bool should_animate = false;
 
-        //gl_Position = mvp * vec4(in_position, 1.0);
+        if (in_bone_ids.x != 0.0 || in_bone_ids.y != 0.0 || in_bone_ids.z != 0.0) {
+            should_animate = true;
+        }
+
+        if (should_animate) {
+            vec4 total_local_pos = vec4(0.0);
+            vec4 total_normal = vec4(0.0);
+            
+            for(int i = 0; i < MAX_WEIGHTS; i++) {
+                mat4 joint_transform = joint_transforms[highp int(in_bone_ids[i])];
+                vec4 pos_position = joint_transform * vec4(in_position, 1.0);
+                total_local_pos += pos_position * in_bone_weights[i];
+            
+                vec4 world_normal = joint_transform * vec4(in_normal, 0.0);
+                total_normal += world_normal * in_bone_weights[i];
+            }
+
+            gl_Position = mvp * total_local_pos;
+        } else {
+            gl_Position = mvp * vec4(in_position, 1.0);
+        }
+
         tex_coords = in_tex_coords;
         vertex_color = in_color;
     }
@@ -43,13 +62,17 @@ pub const DEFAULT_FRAGMENT_SHADER: &str = "
 
     out vec4 output_color;
 
-    uniform sampler2D sampler_objs[4];
+    uniform bool should_sample_texture;
+    uniform sampler2D sampler_objs[32];
 
     void main() {
         highp int sampler_index = int(tex_coords.z);
 
-        output_color = mix(texture(sampler_objs[sampler_index], tex_coords.xy), vec4(vertex_color, 1.0), 0.5);
-        //output_color = vec4(vertex_color, 1.0);
+        if (should_sample_texture) {
+            output_color = mix(texture(sampler_objs[sampler_index], tex_coords.xy), vec4(vertex_color, 1.0), 0.5);
+        } else {
+            output_color = vec4(vertex_color, 1.0);
+        }
     }
 ";
 
@@ -433,5 +456,15 @@ impl ShaderProgram {
         }
 
         self.use_program(false);
+    }
+
+    pub fn set_uniform_bool(&self, name: &str, value: bool) {
+        self.set_uniform_i32(name, value as i32);
+    }
+
+    pub fn set_uniform_vec_bool(&self, name: &str, vec: &Vec<bool>) {
+        let vec_i32: Vec<i32> = vec.iter().map(|&x| x as i32).collect();
+
+        self.set_uniform_vec_i32(name, &vec_i32)
     }
 }

@@ -1,4 +1,5 @@
 use dae_parser::*;
+use glam::Mat4;
 use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
 use crate::graphics::animation::*;
@@ -45,34 +46,36 @@ pub struct AnimatedMeshData {
     pub vertex_array: Vec<Vertex>,
     pub index_array: Vec<u32>,
     pub skeleton: Joint,
-    pub animations: Vec<AnimationData>,
+    pub animation: AnimationData,
 }
 
 impl AnimatedMeshData {
-    pub fn new(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, skeleton: &Joint, animations: &Vec<AnimationData>) -> Self {
+    pub fn new(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, skeleton: &Joint, animation: &AnimationData) -> Self {
         Self {
             vertex_array: vertex_array.clone(),
             index_array: index_array.clone(),
             skeleton: skeleton.clone(),
-            animations: animations.clone(),
+            animation: animation.clone(),
         }
     }
 
     pub fn from_collada(path: &str) -> AnimatedMeshData {
         let doc = Document::from_file(path).unwrap();
         let (mut vertices, indices) = ColladaLoader::load_collada_mesh_data(&doc);
-        let (root_joint, joints) = ColladaLoader::load_collada_skeleton(&doc, &mut vertices);
-        let animations = ColladaLoader::load_collada_animations(&doc, &joints);
+        let (mut root_joint, joints) = ColladaLoader::load_collada_skeleton(&doc, &mut vertices);
+        let animation = ColladaLoader::load_collada_animations(&doc, &joints);
+        
+        root_joint.calculate_inverse_bind_transform(&Mat4::IDENTITY);
 
-        AnimatedMeshData::new(&vertices, &indices, &root_joint, &animations)
+        AnimatedMeshData::new(&vertices, &indices, &root_joint, &animation)
     }
 
     pub fn build(self, shader_program: &ShaderProgram) -> AnimatedMesh {
         AnimatedMesh::new(&self, shader_program)
     }
 
-    pub fn break_down(self) -> (Vec<Vertex>, Vec<u32>, Joint, Vec<AnimationData>) {
-        (self.vertex_array, self.index_array, self.skeleton, self.animations)
+    pub fn break_down(self) -> (Vec<Vertex>, Vec<u32>, Joint, AnimationData) {
+        (self.vertex_array, self.index_array, self.skeleton, self.animation)
     }
 }
 
@@ -123,7 +126,7 @@ pub struct AnimatedMesh {
     pub vao: VAO,
     pub shader_program: ShaderProgram,
     pub skeleton: Joint,
-    pub animations: Vec<AnimationData>,
+    pub animation: AnimationData,
     pub index_count: usize,
 }
 
@@ -135,7 +138,7 @@ impl AnimatedMesh {
             vao: vao,
             shader_program: shader_program.clone(),
             skeleton: mesh_data.skeleton.clone(),
-            animations: mesh_data.animations.clone(),
+            animation: mesh_data.animation.clone(),
             index_count: mesh_data.index_array.len(),
         }
     }
@@ -148,13 +151,13 @@ impl AnimatedMesh {
 
     pub fn get_mesh_data(&self) -> AnimatedMeshData {
         let (vertices, indices) = self.vao.get_data();
-        AnimatedMeshData::new(&vertices, &indices, &self.skeleton, &self.animations)
+        AnimatedMeshData::new(&vertices, &indices, &self.skeleton, &self.animation)
     }
 
     pub fn delete(&self) -> AnimatedMeshData {
         let (vertices, indices) = self.vao.delete();
 
-        AnimatedMeshData::new(&vertices, &indices, &self.skeleton, &self.animations)
+        AnimatedMeshData::new(&vertices, &indices, &self.skeleton, &self.animation)
     }
 
 }
