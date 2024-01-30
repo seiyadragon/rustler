@@ -36,7 +36,7 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
             vec4 total_normal = vec4(0.0);
             
             for(int i = 0; i < MAX_WEIGHTS; i++) {
-                mat4 joint_transform = joint_transforms[highp int(in_bone_ids[i])];
+                mat4 joint_transform = joint_transforms[int(in_bone_ids[i])];
                 vec4 pos_position = joint_transform * vec4(in_position, 1.0);
                 total_local_pos += pos_position * in_bone_weights[i];
             
