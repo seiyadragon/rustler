@@ -105,6 +105,17 @@ impl JointTransform {
         let rotation = Mat4::from_quat(self.rotation);
         translation * rotation
     }
+
+    pub fn interpolate(&self, other: &JointTransform, progression: f32) -> JointTransform {
+        let position = self.position.lerp(other.position, progression);
+        let rotation = self.rotation.slerp(other.rotation, progression);
+
+        JointTransform {
+            joint_name: self.joint_name.clone(),
+            position: position,
+            rotation: rotation,
+        }
+    }
 }
 
 impl std::fmt::Display for JointTransform {
@@ -163,10 +174,25 @@ impl AnimationData {
         }
     }
 
-    pub fn apply_keyframe_to_joints(&self, keyframe: usize, skeleton: &mut Joint, parent_transform: &Mat4) {
-        let mut joint_transforms: Vec<JointTransform> = self.key_frames[keyframe].pose.clone();
+    pub fn apply_keyframe_to_joints(&self, keyframe: f32, skeleton: &mut Joint, parent_transform: &Mat4) {
+        let joint_transforms: Vec<JointTransform> = self.key_frames[keyframe.floor() as usize].pose.clone();
 
-        let current_local_pose = joint_transforms.iter().find(|joint| joint.joint_name == skeleton.name).unwrap().get_local_transform();
+        let mut next_joint_transforms_index = keyframe.floor() as usize + 1;
+
+        if next_joint_transforms_index >= self.key_frames.len() {
+            next_joint_transforms_index = 0;
+        }
+
+        let next_joint_transforms: Vec<JointTransform> = self.key_frames[next_joint_transforms_index].pose.clone();
+
+        let actual_joint_transforms: Vec<JointTransform> = joint_transforms.iter().map(|joint| {
+            let next_joint = next_joint_transforms.iter().find(|next_joint| next_joint.joint_name == joint.joint_name).unwrap();
+            joint.interpolate(next_joint, keyframe.fract())
+        }).collect();
+
+        let current_joint_transform = actual_joint_transforms.iter().find(|joint| joint.joint_name == skeleton.name).unwrap();
+
+        let current_local_pose = current_joint_transform.get_local_transform();
         let mut current_global_pose = *parent_transform * current_local_pose;
 
         for child in &mut skeleton.children {

@@ -2,6 +2,7 @@ use glam::Mat3;
 use glam::Quat;
 use glam::{Vec2, Vec3, Mat4};
 use dae_parser::*;
+use crate::graphics::math::Deg;
 use crate::graphics::vertex::*;
 use crate::graphics::animation::*;
 

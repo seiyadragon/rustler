@@ -17,8 +17,8 @@ mod util;
 
 struct Model {
     renderable: RenderableObject,
-    current_keyframe: usize,
-    max_keyframes: usize,
+    current_keyframe: f32,
+    max_keyframes: f32,
 }
 
 impl Entity for Model {
@@ -40,11 +40,11 @@ impl Entity for Model {
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
-        self.renderable.rotation.x += 1.0;
+        //self.renderable.rotation.x += 1.0;
 
-        self.current_keyframe += 1;
+        self.current_keyframe += 1.0 / 100.0 as f32;
         if self.current_keyframe >= self.max_keyframes {
-            self.current_keyframe = 0;
+            self.current_keyframe = 0.0;
         }
     }
 
@@ -69,11 +69,11 @@ impl EventLoopHandler for Application {
                     animated_mesh.clone()
                 ),
                 &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(0.0, 0.0, 0.0), 
+                &Vec3::new(-90.0, 0.0, 0.0), 
                 &Vec3::new(1.0, 1.0, 1.0)
             ),
-            current_keyframe: 0,
-            max_keyframes: (&animated_mesh.animation.key_frames.len()).clone(),
+            current_keyframe: 0.0,
+            max_keyframes: (&animated_mesh.animation.key_frames.len()).clone() as f32,
         };
 
         /*let model = Model {
@@ -114,6 +114,6 @@ fn main() {
 
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2, &graphics).unwrap();
-    window.run_at_20_ticks_with_frames(&app, 20);
+    window.run(&app, 100, 20);
     //window.run_at_20_ticks_with_frames(&app, 2000);
 }
