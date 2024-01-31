@@ -42,7 +42,7 @@ impl Entity for Model {
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
         //self.renderable.rotation.x += 1.0;
 
-        self.current_keyframe += 1.0 / 100.0 as f32;
+        self.current_keyframe += 2.0 / 100.0 as f32;
         if self.current_keyframe >= self.max_keyframes {
             self.current_keyframe = 0.0;
         }
@@ -68,8 +68,8 @@ impl EventLoopHandler for Application {
                 Mesh::AnimatedMesh(
                     animated_mesh.clone()
                 ),
+                &Vec3::new(5.0, 5.0, 10.0), 
                 &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(-90.0, 0.0, 0.0), 
                 &Vec3::new(1.0, 1.0, 1.0)
             ),
             current_keyframe: 0.0,
@@ -79,12 +79,14 @@ impl EventLoopHandler for Application {
         /*let model = Model {
             renderable: RenderableObject::new(
                 Mesh::StaticMesh(
-                    StaticMeshData::from_collada("./res/model.dae").build(&shader_program)
+                    StaticMeshData::from_collada("./res/world.dae").build(&shader_program)
                 ),
+                &Vec3::new(20.0, 5.0, 10.0), 
                 &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(1.0, 1.0, 1.0)
-            )
+                &Vec3::new(1.0, 1.0, 1.0),
+            ),
+            current_keyframe: 0.0,
+            max_keyframes: (&animated_mesh.animation.key_frames.len()).clone() as f32,
         };*/
 
         entity_manager.push(Box::new(model));

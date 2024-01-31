@@ -52,8 +52,19 @@ impl Renderable for RenderableObject {
             Mesh::AnimatedMesh(mesh) => &mesh.shader_program,
         };
 
+        let y_up = match &self.mesh {
+            Mesh::StaticMesh(mesh) => mesh.y_up,
+            Mesh::AnimatedMesh(mesh) => mesh.y_up,
+        };
+
+        let mut model_matrix = self.get_model_matrix();
+
+        if !y_up {
+            model_matrix = model_matrix * Mat4::from_rotation_x(Deg(-90.0).to_radians().as_float());
+        }
+
         shader_program.use_program(true);
-        let mvp = layer.view.get_view_matrix() * layer.get_graphics_layer_matrix() * self.get_model_matrix();
+        let mvp = layer.view.get_view_matrix() * layer.get_graphics_layer_matrix() * model_matrix;
         shader_program.set_uniform_mat4_f32("mvp", &mvp);
 
         for i in 0..self.texture_array.len() {

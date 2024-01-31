@@ -24,10 +24,10 @@ impl View {
     }
 
     pub fn get_view_matrix(&self) -> Mat4 {
-        Mat4::perspective_rh_gl(
+        Mat4::perspective_lh(
             self.fov.to_radians().as_float(), 
             self.size.x / self.size.y, 0.1, 100.0
-        ) * Mat4::look_at_rh(
+        ) * Mat4::look_at_lh(
             self.position, 
             self.front, 
             self.up

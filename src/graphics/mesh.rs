@@ -5,6 +5,8 @@ use crate::graphics::shader::*;
 use crate::graphics::animation::*;
 use crate::graphics::collada::ColladaLoader;
 
+use super::math::Deg;
+
 #[derive(Clone)]
 pub enum MeshData {
     StaticMeshData(StaticMeshData),
@@ -15,6 +17,7 @@ pub enum MeshData {
 pub struct StaticMeshData {
     pub vertex_array: Vec<Vertex>,
     pub index_array: Vec<u32>,
+    pub y_up: bool,
 }
 
 impl StaticMeshData {
@@ -22,14 +25,28 @@ impl StaticMeshData {
         Self {
             vertex_array: vertex_array.clone(),
             index_array: index_array.clone(),
+            y_up: true,
+        }
+    }
+
+    pub fn new_with_y_up(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, y_up: bool) -> Self {
+        Self {
+            vertex_array: vertex_array.clone(),
+            index_array: index_array.clone(),
+            y_up: y_up,
         }
     }
     
     pub fn from_collada(path: &str) -> Self {
         let doc = Document::from_file(path).unwrap();
-        let (mut vertices, indices) = ColladaLoader::load_collada_mesh_data(&doc);
+        let (vertices, indices) = ColladaLoader::load_collada_mesh_data(&doc);
+        let y_up = match ColladaLoader::get_collada_up_axis(&doc) {
+            UpAxis::YUp => true,
+            UpAxis::ZUp => false,
+            UpAxis::XUp => false,
+        };
 
-        Self::new(&vertices, &indices)
+        Self::new_with_y_up(&vertices, &indices, y_up)
     }
 
     pub fn build(self, shader_program: &ShaderProgram) -> StaticMesh {
@@ -47,6 +64,7 @@ pub struct AnimatedMeshData {
     pub index_array: Vec<u32>,
     pub skeleton: Joint,
     pub animation: AnimationData,
+    pub y_up: bool,
 }
 
 impl AnimatedMeshData {
@@ -56,6 +74,17 @@ impl AnimatedMeshData {
             index_array: index_array.clone(),
             skeleton: skeleton.clone(),
             animation: animation.clone(),
+            y_up: true,
+        }
+    }
+
+    pub fn new_with_y_up(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, skeleton: &Joint, animation: &AnimationData, y_up: bool) -> Self {
+        Self {
+            vertex_array: vertex_array.clone(),
+            index_array: index_array.clone(),
+            skeleton: skeleton.clone(),
+            animation: animation.clone(),
+            y_up: y_up,
         }
     }
 
@@ -64,10 +93,15 @@ impl AnimatedMeshData {
         let (mut vertices, indices) = ColladaLoader::load_collada_mesh_data(&doc);
         let (mut root_joint, joints) = ColladaLoader::load_collada_skeleton(&doc, &mut vertices);
         let animation = ColladaLoader::load_collada_animations(&doc, &joints);
+        let y_up = match ColladaLoader::get_collada_up_axis(&doc) {
+            UpAxis::YUp => true,
+            UpAxis::ZUp => false,
+            UpAxis::XUp => false,
+        };
         
         root_joint.calculate_inverse_bind_transform(&Mat4::IDENTITY);
 
-        AnimatedMeshData::new(&vertices, &indices, &root_joint, &animation)
+        AnimatedMeshData::new_with_y_up(&vertices, &indices, &root_joint, &animation, y_up)
     }
 
     pub fn build(self, shader_program: &ShaderProgram) -> AnimatedMesh {
@@ -90,6 +124,7 @@ pub struct StaticMesh {
     pub vao: VAO,
     pub shader_program: ShaderProgram,
     pub index_count: usize,
+    pub y_up: bool,
 }
 
 impl StaticMesh {
@@ -100,6 +135,7 @@ impl StaticMesh {
             vao: vao,
             shader_program: shader_program.clone(),
             index_count: mesh_data.index_array.len(),
+            y_up: mesh_data.y_up,
         }
     }
 
@@ -128,6 +164,7 @@ pub struct AnimatedMesh {
     pub skeleton: Joint,
     pub animation: AnimationData,
     pub index_count: usize,
+    pub y_up: bool,
 }
 
 impl AnimatedMesh {
@@ -140,6 +177,7 @@ impl AnimatedMesh {
             skeleton: mesh_data.skeleton.clone(),
             animation: mesh_data.animation.clone(),
             index_count: mesh_data.index_array.len(),
+            y_up: mesh_data.y_up,
         }
     }
 

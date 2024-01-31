@@ -8,6 +8,10 @@ use crate::graphics::animation::*;
 
 pub struct ColladaLoader;
 impl ColladaLoader {
+    pub fn get_collada_up_axis(doc: &Document) -> UpAxis {
+        doc.asset.up_axis
+    }
+
     pub fn load_collada_mesh_data(doc: &Document) -> (Vec<Vertex>, Vec<u32>) {
         let mut vertices: Vec<Vertex> = Vec::new();
         let mut normal_array: Vec<Vec3> = Vec::new();
@@ -321,9 +325,6 @@ impl ColladaLoader {
                         vertices[i].bone_ids = final_bone_ids;
                         vertices[i].bone_weights = final_bone_weights;
 
-                        println!("Vertex[{0}]: {1}", i, vertices[i].bone_ids);
-                        println!("Vertex[{0}]: {1}", i, vertices[i].bone_weights);
-
                         last_vertex_weight_index += 2 * vcount[i] as usize;
                     }
                 }
@@ -453,7 +454,6 @@ impl ColladaLoader {
                                         float_array_data_vecs[x][y] = float_array_data[x + y * 4];
                                     }
                                 }
-
                                 let mat = Mat4::from_cols_array_2d(&float_array_data_vecs).clone();
 
                                 // Extract translation (position)
