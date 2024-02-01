@@ -17,8 +17,6 @@ mod util;
 
 struct Model {
     renderable: RenderableObject,
-    current_keyframe: f32,
-    max_keyframes: f32,
 }
 
 impl Entity for Model {
@@ -27,24 +25,22 @@ impl Entity for Model {
     }
 
     fn render(&mut self, graphics: &mut GraphicsLayer) {
-        let mesh: Option<&mut AnimatedMesh> = match self.renderable.mesh {
-            Mesh::StaticMesh(ref mut mesh) => None,
-            Mesh::AnimatedMesh(ref mut mesh) => Some(mesh),
-        };
-
-        let animated_mesh = mesh.unwrap();
-
-        animated_mesh.animation.apply_keyframe_to_joints(self.current_keyframe, &mut animated_mesh.skeleton, &Mat4::IDENTITY);
-
         graphics.render_object(&mut self.renderable);
     }
 
     fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
         //self.renderable.rotation.x += 1.0;
 
-        self.current_keyframe += 2.0 / 100.0 as f32;
-        if self.current_keyframe >= self.max_keyframes {
-            self.current_keyframe = 0.0;
+        let mesh: Option<&mut AnimatedMesh> = match self.renderable.mesh {
+            Mesh::StaticMesh(ref mut mesh) => None,
+            Mesh::AnimatedMesh(ref mut mesh) => Some(mesh),
+        };
+
+        if mesh.is_some() {
+            let animated_mesh = mesh.unwrap();
+            animated_mesh.animation_player.animation.length = 1.0;
+
+            animated_mesh.animate(1000.0 / 20.0);
         }
     }
 
@@ -59,7 +55,7 @@ impl EventLoopHandler for Application {
     fn init(&self, entity_manager: &mut Box<EntityManager>) {
         let shader_program = ShaderProgram::default_shader_program();
         let animated_mesh_data = AnimatedMeshData::from_collada("./res/model.dae");
-        let mut animated_mesh = animated_mesh_data.build(&shader_program);
+        let animated_mesh = animated_mesh_data.build(&shader_program);
 
         //animated_mesh.animation.apply_keyframe_to_joints(0, &mut animated_mesh.skeleton, &Mat4::IDENTITY);
 
@@ -68,12 +64,10 @@ impl EventLoopHandler for Application {
                 Mesh::AnimatedMesh(
                     animated_mesh.clone()
                 ),
-                &Vec3::new(5.0, 5.0, 10.0), 
+                &Vec3::new(0.0, 0.0, 0.0), 
                 &Vec3::new(0.0, 0.0, 0.0), 
                 &Vec3::new(1.0, 1.0, 1.0)
             ),
-            current_keyframe: 0.0,
-            max_keyframes: (&animated_mesh.animation.key_frames.len()).clone() as f32,
         };
 
         /*let model = Model {
@@ -85,8 +79,6 @@ impl EventLoopHandler for Application {
                 &Vec3::new(0.0, 0.0, 0.0), 
                 &Vec3::new(1.0, 1.0, 1.0),
             ),
-            current_keyframe: 0.0,
-            max_keyframes: (&animated_mesh.animation.key_frames.len()).clone() as f32,
         };*/
 
         entity_manager.push(Box::new(model));
@@ -117,6 +109,6 @@ fn main() {
     let app = Application{};
     let window = Window::new("Rustler", 1280/2, 720/2, &graphics).unwrap();
     
-    window.run(&app, 100, 100);
+    window.run(&app, 20, 60);
     //window.run_at_20_ticks_with_frames(&app, 2000);
 }

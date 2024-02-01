@@ -1,8 +1,8 @@
+use dae_parser::{Document, Geometry, ArrayElement, Controller, ControlElement, InputList, Transform, NodeType, Node, VisualScene, UpAxis};
 use glam::Mat3;
 use glam::Quat;
 use glam::{Vec2, Vec3, Mat4};
-use dae_parser::*;
-use crate::graphics::math::Deg;
+use dae_parser::Animation as ColladaAnimation;
 use crate::graphics::vertex::*;
 use crate::graphics::animation::*;
 
@@ -175,15 +175,15 @@ impl ColladaLoader {
             let mut texture_index = 0 as usize;
             let mut color_index = 0 as usize;
 
-            if normal_indices.len() > 0 {
+            if normal_indices.len() > 0 && i < normal_indices.len() {
                 normal_index = normal_indices[i] as usize;
             }
 
-            if texture_indices.len() > 0 {
+            if texture_indices.len() > 0 && i < texture_indices.len() {
                 texture_index = texture_indices[i] as usize;
             }
 
-            if color_indices.len() > 0 {
+            if color_indices.len() > 0 && i < color_indices.len() {
                 color_index = color_indices[i] as usize;
             }
 
@@ -266,7 +266,6 @@ impl ColladaLoader {
 
                         for j in 0..vcount[i] {
                             let index = prim[last_vertex_weight_index + 2 * j as usize] as usize;
-                            println!("Vertex[{0}]: {1}", i, index);
                     
                             bone_ids.push(index as f32);
                             bone_weights_indices.push(prim[last_vertex_weight_index + 2 * j as usize + 1] as f32);
@@ -408,13 +407,13 @@ impl ColladaLoader {
         (final_root_joint, joints)
     }
 
-    pub fn load_collada_animations(doc: &Document, joints: &Vec<Joint>) -> AnimationData {
+    pub fn load_collada_animations(doc: &Document, joints: &Vec<Joint>) -> Animation {
         //todo: Load animation section data.
         let mut animation_keyframes: Vec<KeyFrame> = Vec::new();
         let mut time_transform_pairs: Vec<(f32, JointTransform)> = Vec::new();
         let mut times_vec: Vec<f32> = Vec::new();
 
-        for animation in doc.iter::<Animation>() {
+        for animation in doc.iter::<ColladaAnimation>() {
             let mut joint_names: Vec<String> = Vec::new();
             let mut times: Vec<f32> = Vec::new();
             let mut transforms: Vec<JointTransform> = Vec::new();
@@ -529,6 +528,6 @@ impl ColladaLoader {
             animation_keyframes.push(keyframe);
         }
         
-        AnimationData::new(&animation_keyframes)
+        Animation::new(&animation_keyframes)
     }
 }

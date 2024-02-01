@@ -1,4 +1,8 @@
+use std::{cell::RefCell, ptr::null_mut, rc::Rc};
+
 use glam::{Vec3, Mat4, Quat};
+
+use crate::AnimatedMesh;
 
 pub struct Joint {
     pub id: i32,
@@ -147,22 +151,15 @@ impl KeyFrame {
 }
 
 #[derive(Clone)]
-pub struct AnimationData {
+pub struct Animation {
     pub length: f32,
     pub key_frames: Vec<KeyFrame>,
 }
 
-impl AnimationData {
+impl Animation {
     pub fn new(key_frames: &Vec<KeyFrame>) -> Self {
-        let mut length = 0.0;
-        for key_frame in key_frames {
-            if key_frame.time_stamp > length {
-                length = key_frame.time_stamp;
-            }
-        }
-
-        AnimationData {
-            length: length,
+        Self {
+            length: 1.0,
             key_frames: key_frames.clone(),
         }
     }
@@ -174,10 +171,15 @@ impl AnimationData {
         }
     }
 
-    pub fn apply_keyframe_to_joints(&self, keyframe: f32, skeleton: &mut Joint, parent_transform: &Mat4) {
-        let joint_transforms: Vec<JointTransform> = self.key_frames[keyframe.floor() as usize].pose.clone();
 
-        let mut next_joint_transforms_index = keyframe.floor() as usize + 1;
+    // Allows you to apply a pose to a mesh at a given time. The poses refer to the keyframes in the animation.
+    // The time is going to be a float value that represents both the current keyframe index as well as how far it is from the next index.
+    // Eg. 0.0 would be the first keyframe, 0.5 would be halfway between the first and second keyframes, and 1.0 would be the second keyframe.
+    // It achieves this by using the floor of the time to get the current keyframe index and the fractional part of the time to get the interpolation value.
+    pub fn apply_pose_to_mesh(&self, time: f32, skeleton: &mut Joint, parent_transform: &Mat4) {
+        let joint_transforms: Vec<JointTransform> = self.key_frames[time.floor() as usize].pose.clone();
+
+        let mut next_joint_transforms_index = time.floor() as usize + 1;
 
         if next_joint_transforms_index >= self.key_frames.len() {
             next_joint_transforms_index = 0;
@@ -187,7 +189,7 @@ impl AnimationData {
 
         let actual_joint_transforms: Vec<JointTransform> = joint_transforms.iter().map(|joint| {
             let next_joint = next_joint_transforms.iter().find(|next_joint| next_joint.joint_name == joint.joint_name).unwrap();
-            joint.interpolate(next_joint, keyframe.fract())
+            joint.interpolate(next_joint, time.fract())
         }).collect();
 
         let current_joint_transform = actual_joint_transforms.iter().find(|joint| joint.joint_name == skeleton.name).unwrap();
@@ -196,10 +198,35 @@ impl AnimationData {
         let mut current_global_pose = *parent_transform * current_local_pose;
 
         for child in &mut skeleton.children {
-            self.apply_keyframe_to_joints(keyframe, child, &current_global_pose);
+            self.apply_pose_to_mesh(time, child, &current_global_pose);
         }
 
         current_global_pose = current_global_pose * skeleton.inverse_bind_transform;
         skeleton.animation_transform = current_global_pose;
+    }
+}
+
+#[derive(Clone)]
+pub struct AnimationPlayer {
+    pub animation: Animation,
+    pub animation_time: f32,
+}
+
+impl AnimationPlayer {
+    pub fn new(animation: &Animation) -> Self {
+        Self {
+            animation: animation.clone(),
+            animation_time: 0.0,
+        }
+    }
+
+    pub fn animate(&mut self, delta_time: f32, skeleton: &mut Joint) {
+        let scaled_time = (self.animation_time / self.animation.length) * (self.animation.key_frames.len() as f32 - 1.0);
+        self.animation.apply_pose_to_mesh(scaled_time, skeleton, &Mat4::IDENTITY);
+
+        self.animation_time += self.animation.length / delta_time;
+        if self.animation_time >= self.animation.length {
+            self.animation_time = 0.0;
+        }
     }
 }

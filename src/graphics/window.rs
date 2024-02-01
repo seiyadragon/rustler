@@ -18,7 +18,7 @@ use std::ffi::CString;
 use glutin::surface::Surface;
 use crate::util::entity::EntityManager;
 use crate::GraphicsLayer;
-use std::time::SystemTime;
+use std::time::Instant;
 
 use super::color::Color;
 
@@ -113,8 +113,8 @@ impl Window {
     }
 
     pub fn run(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64, target_frames_per_second: u64) {
-        let mut last_tick_time = SystemTime::now();
-        let mut last_frame_time = SystemTime::now();
+        let mut last_tick_time = Instant::now();
+        let mut last_frame_time = Instant::now();
         let mut tick_lag: f64 = 0.0;
         let mut frame_lag: f64 = 0.0;
         
@@ -163,12 +163,12 @@ impl Window {
                     loop_handler.init(&mut self.entity_manager);
                 },
                 winit::event::Event::AboutToWait => {
-                    let tick_elapsed = last_tick_time.elapsed().unwrap();
-                    last_tick_time = SystemTime::now();
+                    let tick_elapsed = last_tick_time.elapsed();
+                    last_tick_time = Instant::now();
                     tick_lag += tick_elapsed.as_millis() as f64;
 
-                    let frame_elapsed = last_frame_time.elapsed().unwrap();
-                    last_frame_time = SystemTime::now();
+                    let frame_elapsed = last_frame_time.elapsed();
+                    last_frame_time = Instant::now();
                     frame_lag += frame_elapsed.as_millis() as f64;
 
                     if ticks >= target_ticks_per_second {
@@ -190,19 +190,15 @@ impl Window {
                         tick_lag -= 1000.0 / (target_ticks_per_second as f64);
                     }
 
-                    //let frame_elapsed = last_frame_time.elapsed().unwrap();
-
-                    //if frame_elapsed.as_millis() > 1000 / (target_frames_per_second as u128) {
-                    //    self.internal_window.as_ref().unwrap().request_redraw();
-                    //    frames += 1;
-                    //    last_frame_time = SystemTime::now();
-                    //    //frame_lag -= 1000 / target_frames_per_second as u128;
-                    //}
-
-                    if frame_lag >= 1000.0 / (target_frames_per_second as f64) {
-                        if frames <= target_frames_per_second {
+                    if target_frames_per_second > 0 && target_frames_per_second < 320 {
+                        while frame_lag >= 1000.0 / (target_frames_per_second as f64) {
                             self.internal_window.as_ref().unwrap().request_redraw();
+
+                            frames += 1;
+                            frame_lag -= 1000.0 / (target_frames_per_second as f64);
                         }
+                    } else {
+                        self.internal_window.as_ref().unwrap().request_redraw();
 
                         frames += 1;
                         frame_lag -= 1000.0 / (target_frames_per_second as f64);
@@ -256,34 +252,6 @@ impl Window {
                 _ => ()
             }
         }).unwrap();
-    }
-
-    pub fn run_at_20_ticks_with_frames(mut self, loop_handler: &dyn EventLoopHandler, target_frames_per_second: u64) {
-        self.run(loop_handler, 20, target_frames_per_second);
-    }
-
-    pub fn run_at_30_ticks_with_frames(mut self, loop_handler: &dyn EventLoopHandler, target_frames_per_second: u64) {
-        self.run(loop_handler, 30, target_frames_per_second);
-    }
-
-    pub fn run_at_60_ticks_with_frames(mut self, loop_handler: &dyn EventLoopHandler, target_frames_per_second: u64) {
-        self.run(loop_handler, 60, target_frames_per_second);
-    }
-
-    pub fn run_at_30_frames_with_ticks(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64) {
-        self.run(loop_handler, target_ticks_per_second, 30);
-    }
-
-    pub fn run_at_60_frames_with_ticks(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64) {
-        self.run(loop_handler, target_ticks_per_second, 60);
-    }
-
-    pub fn run_at_120_frames_with_ticks(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64) {
-        self.run(loop_handler, target_ticks_per_second, 120);
-    }
-
-    pub fn run_at_240_frames_with_ticks(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64) {
-        self.run(loop_handler, target_ticks_per_second, 240);
     }
 
     pub fn clear_screen(color: Color) {
