@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::ptr::null_mut;
-use std::rc::Rc;
 
 use dae_parser::*;
 use glam::Mat4;
@@ -8,9 +5,6 @@ use crate::graphics::vertex::*;
 use crate::graphics::shader::*;
 use crate::graphics::animation::*;
 use crate::graphics::collada::ColladaLoader;
-
-use super::animation;
-use super::math::Deg;
 
 #[derive(Clone)]
 pub enum MeshData {
@@ -67,30 +61,23 @@ impl StaticMeshData {
 pub struct AnimatedMeshData {
     pub vertex_array: Vec<Vertex>,
     pub index_array: Vec<u32>,
-    pub skeleton: Joint,
     pub animation_player: AnimationPlayer,
     pub y_up: bool,
 }
 
 impl AnimatedMeshData {
-    pub fn new(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, skeleton: &Joint, animation_player: &AnimationPlayer) -> Self {
+    pub fn new(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, animation_player: &AnimationPlayer) -> Self {
         Self {
             vertex_array: vertex_array.clone(),
             index_array: index_array.clone(),
-            skeleton: skeleton.clone(),
             animation_player: animation_player.clone(),
             y_up: true,
         }
     }
 
-    pub fn new_with_y_up(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, skeleton: &Joint, animation_player: &AnimationPlayer, y_up: bool) -> Self {
-        Self {
-            vertex_array: vertex_array.clone(),
-            index_array: index_array.clone(),
-            skeleton: skeleton.clone(),
-            animation_player: animation_player.clone(),
-            y_up: y_up,
-        }
+    pub fn with_z_up(mut self) -> Self {
+        self.y_up = false;
+        self
     }
 
     pub fn from_collada(path: &str) -> AnimatedMeshData {
@@ -98,7 +85,6 @@ impl AnimatedMeshData {
         let (mut vertices, indices) = ColladaLoader::load_collada_mesh_data(&doc);
         let (mut root_joint, joints) = ColladaLoader::load_collada_skeleton(&doc, &mut vertices);
         let animation = ColladaLoader::load_collada_animations(&doc, &joints);
-        let animation_player = AnimationPlayer::new(&animation);
         let y_up = match ColladaLoader::get_collada_up_axis(&doc) {
             UpAxis::YUp => true,
             UpAxis::ZUp => false,
@@ -106,16 +92,21 @@ impl AnimatedMeshData {
         };
         
         root_joint.calculate_inverse_bind_transform(&Mat4::IDENTITY);
+        let animation_player = AnimationPlayer::new(&animation, &root_joint);
 
-        AnimatedMeshData::new_with_y_up(&vertices, &indices, &root_joint, &animation_player, y_up)
+        if y_up { 
+            AnimatedMeshData::new(&vertices, &indices, &animation_player)
+        } else {
+            AnimatedMeshData::new(&vertices, &indices, &animation_player).with_z_up()
+        }
     }
 
     pub fn build(self, shader_program: &ShaderProgram) -> AnimatedMesh {
         AnimatedMesh::new(&self, shader_program)
     }
 
-    pub fn break_down(self) -> (Vec<Vertex>, Vec<u32>, Joint, AnimationPlayer) {
-        (self.vertex_array, self.index_array, self.skeleton, self.animation_player)
+    pub fn break_down(self) -> (Vec<Vertex>, Vec<u32>, AnimationPlayer) {
+        (self.vertex_array, self.index_array, self.animation_player)
     }
 }
 
@@ -167,7 +158,6 @@ impl StaticMesh {
 pub struct AnimatedMesh {
     pub vao: VAO,
     pub shader_program: ShaderProgram,
-    pub skeleton: Joint,
     pub animation_player: AnimationPlayer,
     pub index_count: usize,
     pub y_up: bool,
@@ -180,7 +170,6 @@ impl AnimatedMesh {
         Self {
             vao: vao,
             shader_program: shader_program.clone(),
-            skeleton: mesh_data.skeleton.clone(),
             animation_player: mesh_data.animation_player.clone(),
             index_count: mesh_data.index_array.len(),
             y_up: mesh_data.y_up,
@@ -193,20 +182,15 @@ impl AnimatedMesh {
         self.shader_program.use_program(false);
     }
 
-    pub fn animate(&mut self, delta: f32) {
-        self.animation_player.animate(delta, &mut self.skeleton);
-    }
-
     pub fn get_mesh_data(&self) -> AnimatedMeshData {
         let (vertices, indices) = self.vao.get_data();
 
-        AnimatedMeshData::new(&vertices, &indices, &self.skeleton, &self.animation_player)
+        AnimatedMeshData::new(&vertices, &indices, &self.animation_player)
     }
 
     pub fn delete(&self) -> AnimatedMeshData {
         let (vertices, indices) = self.vao.delete();
 
-        AnimatedMeshData::new(&vertices, &indices, &self.skeleton, &self.animation_player)
+        AnimatedMeshData::new(&vertices, &indices, &self.animation_player)
     }
-
 }

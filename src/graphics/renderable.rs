@@ -1,6 +1,4 @@
-use crate::Color;
-use crate::ColorBuffer;
-use crate::Texture;
+use crate::{AnimatedMesh, StaticMesh, Texture};
 use super::math::Deg;
 use super::mesh::Mesh;
 use super::view::GraphicsLayer;
@@ -20,13 +18,50 @@ pub struct RenderableObject {
 }
 
 impl RenderableObject {
-    pub fn new(mesh: Mesh, position: &Vec3, rotation: &Vec3, scale: &Vec3) -> Self {
+    pub fn new(mesh: Mesh) -> Self {
         RenderableObject {
             mesh: mesh,
             texture_array: Vec::new(),
-            position: position.clone(),
-            rotation: rotation.clone(),
-            scale: scale.clone(),
+            position: Vec3::new(0.0, 0.0, 0.0),
+            rotation: Vec3::new(0.0, 0.0, 0.0),
+            scale: Vec3::new(1.0, 1.0, 1.0),
+        }
+    }
+
+    pub fn with_position(mut self, position: &Vec3) -> Self {
+        self.position = *position;
+        self
+    }
+
+    pub fn with_rotation(mut self, rotation: &Vec3) -> Self {
+        self.rotation = *rotation;
+        self
+    }
+
+    pub fn with_scale(mut self, scale: &Vec3) -> Self {
+        self.scale = *scale;
+        self
+    }
+
+    pub fn push_texture(&mut self, texture: &Texture) {
+        self.texture_array.push(*texture);
+    }
+
+    pub fn pop_texture(&mut self) -> Texture {
+        self.texture_array.pop().unwrap()
+    }
+
+    pub fn get_static_mesh(&mut self) -> Option<&mut StaticMesh> {
+        match &mut self.mesh {
+            Mesh::StaticMesh(mesh) => Some(mesh),
+            Mesh::AnimatedMesh(_) => None,
+        }
+    }
+
+    pub fn get_animated_mesh(&mut self) -> Option<&mut AnimatedMesh> {
+        match &mut self.mesh {
+            Mesh::StaticMesh(_) => None,
+            Mesh::AnimatedMesh(mesh) => Some(mesh),
         }
     }
 }
@@ -80,7 +115,7 @@ impl Renderable for RenderableObject {
         match &self.mesh {
             Mesh::StaticMesh(mesh) => mesh.render(),
             Mesh::AnimatedMesh(mesh) => {
-                shader_program.set_uniform_vec_mat4_f32("joint_transforms", &mesh.skeleton.get_global_transform_matrices());
+                shader_program.set_uniform_vec_mat4_f32("joint_transforms", &mesh.animation_player.skeleton.get_global_transform_matrices());
                 mesh.render();
             },
         }

@@ -1,6 +1,11 @@
-use graphics::math::Deg;
-use graphics::shader;
-use winit::{event::*, keyboard::*};
+
+use std::time::Duration;
+
+use graphics::renderable;
+use graphics::view;
+use util::entity;
+use util::event::EventQueue;
+use util::event::Input;
 use glam::*;
 use graphics::color::*;
 use graphics::renderable::*;
@@ -10,105 +15,64 @@ use graphics::shader::*;
 use graphics::texture::*;
 use util::entity::*;
 use graphics::mesh::*;
-use rand::Rng;
-
+use winit::keyboard::KeyCode;
 mod graphics;
 mod util;
 
-struct Model {
-    renderable: RenderableObject,
-}
-
-impl Entity for Model {
-    fn init(&mut self) {
-        //self.renderable.texture_array.push(Texture::from_file("./res/crate.png"));
-    }
-
-    fn render(&mut self, graphics: &mut GraphicsLayer) {
-        graphics.render_object(&mut self.renderable);
-    }
-
-    fn update(&mut self, event_queue: &mut EventQueue, input: &mut Input) {
-        //self.renderable.rotation.x += 1.0;
-
-        let mesh: Option<&mut AnimatedMesh> = match self.renderable.mesh {
-            Mesh::StaticMesh(ref mut mesh) => None,
-            Mesh::AnimatedMesh(ref mut mesh) => Some(mesh),
-        };
-
-        if mesh.is_some() {
-            let animated_mesh = mesh.unwrap();
-            animated_mesh.animation_player.animation.length = 1.0;
-
-            animated_mesh.animate(1000.0 / 20.0);
-        }
-    }
-
-    fn exit(&mut self) {
-        
-    }
-}
-
-struct Application;
-
-impl EventLoopHandler for Application {
-    fn init(&self, entity_manager: &mut Box<EntityManager>) {
-        let shader_program = ShaderProgram::default_shader_program();
-        let animated_mesh_data = AnimatedMeshData::from_collada("./res/model.dae");
-        let animated_mesh = animated_mesh_data.build(&shader_program);
-
-        //animated_mesh.animation.apply_keyframe_to_joints(0, &mut animated_mesh.skeleton, &Mat4::IDENTITY);
-
-        let model = Model {
-            renderable: RenderableObject::new(
-                Mesh::AnimatedMesh(
-                    animated_mesh.clone()
-                ),
-                &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(1.0, 1.0, 1.0)
-            ),
-        };
-
-        /*let model = Model {
-            renderable: RenderableObject::new(
-                Mesh::StaticMesh(
-                    StaticMeshData::from_collada("./res/world.dae").build(&shader_program)
-                ),
-                &Vec3::new(20.0, 5.0, 10.0), 
-                &Vec3::new(0.0, 0.0, 0.0), 
-                &Vec3::new(1.0, 1.0, 1.0),
-            ),
-        };*/
-
-        entity_manager.push(Box::new(model));
-    }
-
-    fn render(&self, entity_manager: &mut Box<EntityManager>, graphics: &mut GraphicsLayer) {
-        //graphics.clear_screen(Color::from_hex(0x00000000));
-    }
-
-    fn update(&self, entity_manager: &mut Box<EntityManager>, event_queue: &mut EventQueue, input: &mut Input) {
-        event_queue.ignore_events();
-    }
-
-    fn exit(&self, entity_manager: &mut Box<EntityManager>) {
-        
-    }
-}
 
 fn main() {
-    let graphics = GraphicsLayer::default_graphics_layer(View::new(
-        Vec2::new(1280.0/2.0, 720.0/2.0), 
-        Vec3::new(0.0, 0.0, -20.0), 
-        Vec3::new(0.0, 0.0, 1.0), 
-        Vec3::new(0.0, 1.0, 0.0), 
-        45.0,
-    ));
+    let mut application = Entity::new()
+        .with_init(|entity| {
+            let model = Entity::new()
+                .with_init(|entity| {
+                    let renderable = entity.variables.declare("renderable", RenderableObject::new(
+                        Mesh::AnimatedMesh(AnimatedMeshData::from_collada("./res/daeude.dae").build(&ShaderProgram::default_shader_program()))
+                    )
+                    .with_position(&Vec3::new(0.0, -5.0, 15.0))
+                    .with_rotation(&Vec3::new(0.0, 90.0, 0.0))
+                );
 
-    let app = Application{};
-    let window = Window::new("Rustler", 1280/2, 720/2, &graphics).unwrap();
-    
-    window.run(&app, 20, 60);
-    //window.run_at_20_ticks_with_frames(&app, 2000);
+                })
+                .with_render(|entity, graphics| {
+                    let renderable = entity.variables.get::<RenderableObject>("renderable");
+                    renderable.rotation.y += 0.01;
+
+                    graphics.render_object(renderable);
+                })
+                .with_update(|entity, event_queue, input, delta| {
+                    let renderable = entity.variables.get::<RenderableObject>("renderable");
+
+                    renderable.get_animated_mesh().unwrap().animation_player.animate(delta, &Duration::from_secs_f32(2.5));
+
+                    if input.was_key_just_pressed(KeyCode::Space) {
+                        renderable.get_animated_mesh().unwrap().animation_player.pause_to_pose(&Duration::from_secs_f32(0.0));
+                    }
+
+                    if input.was_key_just_released(KeyCode::Space) {
+                        renderable.get_animated_mesh().unwrap().animation_player.toggle_pause();
+                    }
+                })
+                .with_exit(|entity| {
+                    
+                })
+            ;
+
+            entity.push(model);
+        })
+        .with_render(|entity, graphics| {
+            
+        })
+        .with_update(|entity, event_queue, input, delta| {
+            
+        })
+        .with_exit(|entity| {
+            
+        })
+    ;
+
+    let view = View::new(Vec2::new(800.0, 600.0));
+    let graphics = GraphicsLayer::new(&view);
+    let window = Window::new("Test", &graphics).unwrap();
+
+    window.run(&mut application, 60, 0);
 }

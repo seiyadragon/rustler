@@ -2,23 +2,21 @@ use glutin::config::Config;
 use glutin::surface::WindowSurface;
 use winit::dpi::{LogicalSize, PhysicalSize};
 use raw_window_handle::HasRawWindowHandle;
-use winit::event::{ElementState, MouseButton};
+use winit::event::ElementState;
 pub use winit::event::{Event, KeyEvent, WindowEvent};
-pub use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::platform::scancode::PhysicalKeyExtScancode;
 use winit::window::WindowBuilder;
 use glutin::context::{ContextApi, ContextAttributesBuilder, Version, PossiblyCurrentContext};
 use glutin::display::GetGlDisplay;
 use glutin::prelude::*;
 use glutin_winit::{self, GlWindow};
-use std::collections::VecDeque;
 use std::error::Error;
 use glutin::context::NotCurrentContext;
 use std::ffi::CString;
 use glutin::surface::Surface;
-use crate::util::entity::EntityManager;
-use crate::GraphicsLayer;
-use std::time::Instant;
+use crate::util::event::{EventQueue, Input};
+use crate::{Entity, GraphicsLayer};
+use std::time::{Duration, Instant};
 
 use super::color::Color;
 
@@ -36,16 +34,18 @@ pub struct Window {
     pub size: PhysicalSize<u32>,
     pub event_queue: EventQueue,
     pub input: Input,
-    pub entity_manager: Box<EntityManager>,
     pub current_frames_per_second: u64,
     pub current_ticks_per_second: u64,
     pub default_graphics_layer: GraphicsLayer,
 }
 
 impl Window {
-    pub fn new(title: &str, width: u32, height: u32, default_graphics_layer: &GraphicsLayer) -> Result<Self, Box<dyn Error>> {
+    pub fn new(title: &str, default_graphics_layer: &GraphicsLayer) -> Result<Self, Box<dyn Error>> {
         let event_loop = winit::event_loop::EventLoop::new().unwrap();
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+
+        let width = default_graphics_layer.view.size.x as u32;
+        let height = default_graphics_layer.view.size.y as u32;
 
         let window_builder = winit::window::WindowBuilder::new()
             .with_title(title)
@@ -105,14 +105,13 @@ impl Window {
             context_surface: None,
             event_queue: EventQueue::new(),
             input: Input::new(),
-            entity_manager: Box::from(EntityManager::new()),
             current_frames_per_second: 0,
             current_ticks_per_second: 0,
             default_graphics_layer: default_graphics_layer.clone(),
         })
     }
 
-    pub fn run(mut self, loop_handler: &dyn EventLoopHandler, target_ticks_per_second: u64, target_frames_per_second: u64) {
+    pub fn run(mut self, loop_handler: &mut Entity, target_ticks_per_second: u64, target_frames_per_second: u64) {
         let mut last_tick_time = Instant::now();
         let mut last_frame_time = Instant::now();
         let mut tick_lag: f64 = 0.0;
@@ -160,7 +159,7 @@ impl Window {
                         gl::CullFace(gl::BACK);
                     }
 
-                    loop_handler.init(&mut self.entity_manager);
+                    loop_handler.init();
                 },
                 winit::event::Event::AboutToWait => {
                     let tick_elapsed = last_tick_time.elapsed();
@@ -182,9 +181,8 @@ impl Window {
                     }
 
                     while tick_lag >= 1000.0 / (target_ticks_per_second as f64) {
-                        loop_handler.update(&mut self.entity_manager, &mut self.event_queue, &mut self.input);
+                        loop_handler.update(&mut self.event_queue, &mut self.input, &Duration::from_millis(tick_lag as u64));
                         self.input.update();
-                        self.entity_manager.update(&mut self.event_queue, &mut self.input);
 
                         ticks += 1;
                         tick_lag -= 1000.0 / (target_ticks_per_second as f64);
@@ -207,8 +205,7 @@ impl Window {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::RedrawRequested => {
                         Window::clear_screen(Color::new(165, 93, 63, 255));
-                        loop_handler.render(&mut self.entity_manager, &mut self.default_graphics_layer);
-                        self.entity_manager.render(&mut self.default_graphics_layer);
+                        loop_handler.render(&mut self.default_graphics_layer);
                         self.context_surface.as_ref().unwrap().swap_buffers(self.current_context.as_ref().unwrap()).unwrap();
                     },
                     WindowEvent::Resized(size) => {
@@ -219,7 +216,7 @@ impl Window {
                     },
                     WindowEvent::CloseRequested => {
                         elwt.exit();
-                        loop_handler.exit(&mut self.entity_manager);
+                        loop_handler.exit();
                     },
                     WindowEvent::KeyboardInput { event, .. } => match event {
                         KeyEvent { physical_key, logical_key: _, text: _, location: _, state, repeat, .. } => {
@@ -263,174 +260,3 @@ impl Window {
         }
     }
 }
-
-pub trait EventLoopHandler {
-    fn init(&self, entity_manager: &mut Box<EntityManager>);
-    fn render(&self, entity_manager: &mut Box<EntityManager>, graphics: &mut GraphicsLayer);
-    fn update(&self, entity_manager: &mut Box<EntityManager>, event_queue: &mut EventQueue, input: &mut Input);
-    fn exit(&self, entity_manager: &mut Box<EntityManager>);
-}
-
-pub struct EventQueue {
-    pub internal_queue: VecDeque<Event<()>>,
-}
-
-impl EventQueue {
-    pub fn new() -> Self {
-        EventQueue {
-            internal_queue: VecDeque::new(),
-        }
-    }
-
-    pub fn process_events(&mut self, func: fn(event: Event<()>)) {
-        for event in self.internal_queue.clone() {
-            func(event);
-
-            self.internal_queue.pop_front();
-        }
-
-        self.internal_queue = VecDeque::<Event<()>>::new();
-    }
-
-    pub fn ignore_events(&mut self) {
-        self.internal_queue = VecDeque::<Event<()>>::new();
-    }
-
-    pub fn push(&mut self, event: Event<()>) {
-        self.internal_queue.push_back(event);
-    }
-
-    pub fn len(&self) -> usize {
-        self.internal_queue.len()
-    }
-}
-
-pub struct Input {
-    pub keys: [bool; 255],
-    pub keys_last: [bool; 255],
-    pub buttons: [bool; 32],
-    pub buttons_last: [bool; 32],
-}
-
-impl Input {
-    pub fn new() -> Self {
-        let keys: [bool; 255] = [false; 255];
-        let keys_last: [bool; 255] = [false; 255];
-
-        let buttons: [bool; 32] = [false; 32];
-        let buttons_last: [bool; 32] = [false; 32];
-
-        Input {
-            keys: keys,
-            keys_last: keys_last,
-            buttons: buttons,
-            buttons_last: buttons_last,
-        }
-    }
-
-    pub fn set_key_pressed(&mut self, scancode: u32) {
-        if scancode as usize >= self.keys.len() {
-            return;
-        }
-
-        self.keys[scancode as usize] = true;
-    }
-
-    pub fn set_key_unpressed(&mut self, scancode: u32) {
-        if scancode as usize >= self.keys.len() {
-            return;
-        }
-
-        self.keys[scancode as usize] = false;
-    }
-
-    pub fn set_button_pressed(&mut self, button: u32) {
-        if button as usize >= self.buttons.len() {
-            return;
-        }
-
-        self.buttons[button as usize] = true;
-    }
-
-    pub fn set_button_unpressed(&mut self, button: u32) {
-        if button as usize >= self.buttons.len() {
-            return;
-        }
-
-        self.buttons[button as usize] = false;
-    }
-
-    pub fn update(&mut self) {
-        for i in 0..self.keys.len() {
-            self.keys_last[i] = self.keys[i];
-        }
-
-        for i in 0..self.buttons.len() {
-            self.buttons_last[i] = self.buttons[i];
-        }
-    }
-
-    pub fn key_to_scancode(key: KeyCode) -> u32 {
-        PhysicalKey::Code(key).to_scancode().unwrap()
-    }
-
-    pub fn mouse_button_to_index(button: MouseButton) -> u32 {
-        match button {
-            MouseButton::Left => { 0 },
-            MouseButton::Right => { 1 },
-            MouseButton::Middle => { 2 },
-            MouseButton::Back => { 3 },
-            MouseButton::Forward => { 4 },
-            MouseButton::Other(num) => { num as u32 },
-        }
-    }
-
-    pub fn was_key_just_pressed(&self, key: KeyCode) -> bool {
-        if Self::key_to_scancode(key) as usize >= self.keys.len() {
-            return false;
-        }
-
-        self.keys[Self::key_to_scancode(key) as usize] && !self.keys_last[Self::key_to_scancode(key) as usize]
-    }
-
-    pub fn was_key_just_released(&self, key: KeyCode) -> bool {
-        if Self::key_to_scancode(key) as usize >= self.keys.len() {
-            return false;
-        }
-
-        !self.keys[Self::key_to_scancode(key) as usize] && self.keys_last[Self::key_to_scancode(key) as usize]
-    }
-
-    pub fn is_key_being_held_down(&self, key: KeyCode) -> bool {
-        if Self::key_to_scancode(key) as usize >= self.keys.len() {
-            return false;
-        }
-
-        self.keys[Self::key_to_scancode(key) as usize]
-    }
-
-    pub fn was_button_just_pressed(&self, button: MouseButton) -> bool {
-        if Self::mouse_button_to_index(button) as usize >= self.buttons.len() {
-            return false;
-        }
-
-        self.buttons[Self::mouse_button_to_index(button) as usize] && !self.buttons_last[Self::mouse_button_to_index(button) as usize]
-    }
-
-    pub fn was_button_just_released(&self, button: MouseButton) -> bool {
-        if Self::mouse_button_to_index(button) as usize >= self.buttons.len() {
-            return false;
-        }
-
-        !self.buttons[Self::mouse_button_to_index(button) as usize] && self.buttons_last[Self::mouse_button_to_index(button) as usize]
-    }
-
-    pub fn is_button_being_held(&self, button: MouseButton) -> bool {
-        if Self::mouse_button_to_index(button) as usize >= self.buttons.len() {
-            return false;
-        }
-
-        self.buttons[Self::mouse_button_to_index(button) as usize]
-    }
-}
-

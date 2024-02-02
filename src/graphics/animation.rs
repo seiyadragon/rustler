@@ -1,8 +1,6 @@
-use std::{cell::RefCell, ptr::null_mut, rc::Rc};
+use std::time::Duration;
 
 use glam::{Vec3, Mat4, Quat};
-
-use crate::AnimatedMesh;
 
 pub struct Joint {
     pub id: i32,
@@ -152,14 +150,12 @@ impl KeyFrame {
 
 #[derive(Clone)]
 pub struct Animation {
-    pub length: f32,
     pub key_frames: Vec<KeyFrame>,
 }
 
 impl Animation {
     pub fn new(key_frames: &Vec<KeyFrame>) -> Self {
         Self {
-            length: 1.0,
             key_frames: key_frames.clone(),
         }
     }
@@ -170,7 +166,6 @@ impl Animation {
             key_frame.print_keyframe();
         }
     }
-
 
     // Allows you to apply a pose to a mesh at a given time. The poses refer to the keyframes in the animation.
     // The time is going to be a float value that represents both the current keyframe index as well as how far it is from the next index.
@@ -209,24 +204,48 @@ impl Animation {
 #[derive(Clone)]
 pub struct AnimationPlayer {
     pub animation: Animation,
+    pub paused: bool,
     pub animation_time: f32,
+    pub skeleton: Joint,
 }
 
 impl AnimationPlayer {
-    pub fn new(animation: &Animation) -> Self {
+    pub fn new(animation: &Animation, skeleton: &Joint) -> Self {
         Self {
             animation: animation.clone(),
             animation_time: 0.0,
+            paused: false,
+            skeleton: skeleton.clone(),
         }
     }
 
-    pub fn animate(&mut self, delta_time: f32, skeleton: &mut Joint) {
-        let scaled_time = (self.animation_time / self.animation.length) * (self.animation.key_frames.len() as f32 - 1.0);
-        self.animation.apply_pose_to_mesh(scaled_time, skeleton, &Mat4::IDENTITY);
+    pub fn toggle_pause(&mut self) {
+        self.paused = !self.paused;
+    }
 
-        self.animation_time += self.animation.length / delta_time;
-        if self.animation_time >= self.animation.length {
-            self.animation_time = 0.0;
+    pub fn pause_to_pose(&mut self, time: &Duration) {
+        self.animation_time = time.as_secs_f32();
+        self.animation.apply_pose_to_mesh(time.as_secs_f32(), &mut self.skeleton, &Mat4::IDENTITY);
+        self.paused = true;
+    }
+
+    pub fn reset(&mut self) {
+        self.animation_time = 0.0;
+        self.animation.apply_pose_to_mesh(0.0, &mut self.skeleton, &Mat4::IDENTITY);
+    }
+
+    pub fn animate(&mut self, delta: &Duration, duration: &Duration) {
+        if !self.paused {
+            self.animation_time += delta.as_secs_f32();
+
+            if self.animation_time > duration.as_secs_f32() {
+                self.animation_time = 0.0;
+            }
+
+            let scale = (self.animation.key_frames.len() - 1) as f32;
+            let scaled_animation_time = self.animation_time * scale / duration.as_secs_f32();
+
+            self.animation.apply_pose_to_mesh(scaled_animation_time, &mut self.skeleton, &Mat4::IDENTITY);
         }
     }
 }

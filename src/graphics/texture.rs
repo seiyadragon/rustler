@@ -4,6 +4,7 @@ use image::{io::Reader, RgbaImage};
 
 use crate::ColorBuffer;
 
+#[derive(Clone, Copy)]
 pub struct Texture {
     pub texture_id: GLuint,
 }

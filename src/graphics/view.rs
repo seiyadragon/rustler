@@ -13,14 +13,34 @@ pub struct View {
 }
 
 impl View {
-    pub fn new(size: Vec2, position: Vec3, front: Vec3, up: Vec3, fov: f32) -> Self {
+    pub fn new(size: Vec2) -> Self {
         View {
             size: size,
-            position: position,
-            front: front,
-            up: up,
-            fov: Deg(fov),
+            position: Vec3::new(0.0, 0.0, 0.0),
+            front: Vec3::new(0.0, 0.0, 1.0),
+            up: Vec3::new(0.0, 1.0, 0.0),
+            fov: Deg(70.0),
         }
+    }
+
+    pub fn with_position(mut self, position: Vec3) -> Self {
+        self.position = position;
+        self
+    }
+
+    pub fn with_front(mut self, front: Vec3) -> Self {
+        self.front = front;
+        self
+    }
+
+    pub fn with_up(mut self, up: Vec3) -> Self {
+        self.up = up;
+        self
+    }
+
+    pub fn with_fov(mut self, fov: Deg) -> Self {
+        self.fov = fov;
+        self
     }
 
     pub fn get_view_matrix(&self) -> Mat4 {
@@ -45,18 +65,29 @@ pub struct GraphicsLayer {
 }
 
 impl GraphicsLayer {
-    pub fn new(view: View, position: Vec3, rotation: Vec3, scale: Vec3) -> Self {
+    pub fn new(view: &View) -> Self {
         GraphicsLayer {
-            view: view,
-            position: position,
-            rotation: rotation,
-            scale: scale,
+            view: view.clone(),
+            position: Vec3::new(0.0, 0.0, 0.0),
+            rotation: Vec3::new(0.0, 0.0, 0.0),
+            scale: Vec3::new(1.0, 1.0, 1.0),
             parent: None,
         }
     }
 
-    pub fn default_graphics_layer(view: View) -> Self {
-        GraphicsLayer::new(view, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0))
+    pub fn with_position(mut self, position: Vec3) -> Self {
+        self.position = position;
+        self
+    }
+
+    pub fn with_rotation(mut self, rotation: Vec3) -> Self {
+        self.rotation = rotation;
+        self
+    }
+
+    pub fn with_scale(mut self, scale: Vec3) -> Self {
+        self.scale = scale;
+        self
     }
 
     pub fn get_graphics_layer_matrix(&self) -> Mat4 {
