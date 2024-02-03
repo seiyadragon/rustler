@@ -25,22 +25,22 @@ fn main() {
         .with_init(|entity| {
             let model = Entity::new()
                 .with_init(|entity| {
-                    let renderable = entity.variables.declare("renderable", RenderableObject::new(
-                        Mesh::AnimatedMesh(AnimatedMeshData::from_collada("./res/daeude.dae").build(&ShaderProgram::default_shader_program()))
+                    let renderable = entity.variables.declare("renderable", RenderableMesh::new(
+                        Mesh::AnimatedMesh(AnimatedMeshData::from_collada("./res/model.dae").build(&ShaderProgram::default_shader_program()))
                     )
                     .with_position(&Vec3::new(0.0, -5.0, 15.0))
-                    .with_rotation(&Vec3::new(0.0, 90.0, 0.0))
-                );
+                    .with_rotation(&Vec3::new(0.0, 90.0, 0.0)));
 
+                    //renderable.push_texture(&Texture::from_file("./res/model_texture.png"));
                 })
                 .with_render(|entity, graphics| {
-                    let renderable = entity.variables.get::<RenderableObject>("renderable");
-                    renderable.rotation.y += 0.01;
+                    let renderable = entity.variables.get::<RenderableMesh>("renderable");
+                    renderable.rotate_by(&Vec3::new(0.0, 0.05, 0.0));
 
                     graphics.render_object(renderable);
                 })
                 .with_update(|entity, event_queue, input, delta| {
-                    let renderable = entity.variables.get::<RenderableObject>("renderable");
+                    let renderable = entity.variables.get::<RenderableMesh>("renderable");
 
                     renderable.get_animated_mesh().unwrap().animation_player.animate(delta, &Duration::from_secs_f32(2.5));
 
@@ -70,9 +70,13 @@ fn main() {
         })
     ;
 
-    let view = View::new(Vec2::new(800.0, 600.0));
+    let view = View::View2D(
+        View2D::new(
+            Vec2::new(800.0, 600.0)
+        )
+    );
     let graphics = GraphicsLayer::new(&view);
-    let window = Window::new("Test", &graphics).unwrap();
+    let window = Window::new("Rustler", &graphics).unwrap();
 
     window.run(&mut application, 60, 0);
 }

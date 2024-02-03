@@ -1,15 +1,15 @@
-use crate::{AnimatedMesh, StaticMesh, Texture};
-use super::math::Deg;
+use crate::{AnimatedMesh, ShaderProgram, StaticMesh, StaticMeshData, Texture, View};
+use super::{math::Deg, vertex::Vertex};
 use super::mesh::Mesh;
 use super::view::GraphicsLayer;
-use glam::{Vec3, Mat4};
+use glam::{Mat4, Vec2, Vec3};
 
 pub trait Renderable {
     fn render(&self, layer: &GraphicsLayer);
     fn get_model_matrix(&self) -> Mat4;
 }
 
-pub struct RenderableObject {
+pub struct RenderableMesh {
     pub mesh: Mesh,
     pub texture_array: Vec<Texture>,
     pub position: Vec3,
@@ -17,9 +17,17 @@ pub struct RenderableObject {
     pub scale: Vec3,
 }
 
-impl RenderableObject {
+pub struct RenderableSprite {
+    pub mesh: Mesh,
+    pub texture_array: Vec<Texture>,
+    pub position: Vec3,
+    pub rotation: Vec3,
+    pub scale: Vec3,
+}
+
+impl RenderableMesh {
     pub fn new(mesh: Mesh) -> Self {
-        RenderableObject {
+        RenderableMesh {
             mesh: mesh,
             texture_array: Vec::new(),
             position: Vec3::new(0.0, 0.0, 0.0),
@@ -64,9 +72,57 @@ impl RenderableObject {
             Mesh::AnimatedMesh(mesh) => Some(mesh),
         }
     }
+
+    pub fn move_to(&mut self, position: &Vec3) {
+        self.position = *position;
+    }
+
+    pub fn move_by(&mut self, position: &Vec3) {
+        self.position += *position;
+    }
+
+    pub fn rotate_to(&mut self, rotation: &Vec3) {
+        self.rotation = *rotation;
+
+        if self.rotation.x > 360.0 || self.rotation.x < -360.0 {
+            self.rotation.x = 0.0;
+        }
+
+        if self.rotation.y > 360.0 || self.rotation.y < -360.0 {
+            self.rotation.y = 0.0;
+        }
+
+        if self.rotation.z > 360.0 || self.rotation.z < -360.0 {
+            self.rotation.z = 0.0;
+        }
+    }
+
+    pub fn rotate_by(&mut self, rotation: &Vec3) {
+        self.rotation += *rotation;
+
+        if self.rotation.x > 360.0 || self.rotation.x < -360.0 {
+            self.rotation.x = 0.0;
+        }
+
+        if self.rotation.y > 360.0 || self.rotation.y < -360.0 {
+            self.rotation.y = 0.0;
+        }
+
+        if self.rotation.z > 360.0 || self.rotation.z < -360.0 {
+            self.rotation.z = 0.0;
+        }
+    }
+
+    pub fn scale_to(&mut self, scale: &Vec3) {
+        self.scale = *scale;
+    }
+
+    pub fn scale_by(&mut self, scale: &Vec3) {
+        self.scale += *scale;
+    }
 }
 
-impl Renderable for RenderableObject {
+impl Renderable for RenderableMesh {
     fn get_model_matrix(&self) -> Mat4 {
         let translation = Mat4::from_translation(self.position);
 
@@ -98,8 +154,13 @@ impl Renderable for RenderableObject {
             model_matrix = model_matrix * Mat4::from_rotation_x(Deg(-90.0).to_radians().as_float());
         }
 
+        let view_matrix = match &layer.view {
+            View::View2D(view) => view.get_view_matrix(),
+            View::View3D(view) => view.get_view_matrix(),
+        };
+
         shader_program.use_program(true);
-        let mvp = layer.view.get_view_matrix() * layer.get_graphics_layer_matrix() * model_matrix;
+        let mvp = view_matrix * layer.get_graphics_layer_matrix() * model_matrix;
         shader_program.set_uniform_mat4_f32("mvp", &mvp);
 
         for i in 0..self.texture_array.len() {
@@ -113,7 +174,12 @@ impl Renderable for RenderableObject {
         }
 
         match &self.mesh {
-            Mesh::StaticMesh(mesh) => mesh.render(),
+            Mesh::StaticMesh(mesh) => {
+                let bone_matrices = [Mat4::IDENTITY; 100];
+                shader_program.set_uniform_vec_mat4_f32("joint_transforms", &bone_matrices.to_vec());
+
+                mesh.render()
+            },
             Mesh::AnimatedMesh(mesh) => {
                 shader_program.set_uniform_vec_mat4_f32("joint_transforms", &mesh.animation_player.skeleton.get_global_transform_matrices());
                 mesh.render();
@@ -125,5 +191,106 @@ impl Renderable for RenderableObject {
         }
 
         shader_program.use_program(false);
+    }
+}
+
+impl RenderableSprite {
+    pub fn new(size: Vec2) -> Self {
+        let vertices = vec![
+            // Top left
+            Vertex::new(&Vec3::new(-0.5, 0.5, 0.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+            // Top right
+            Vertex::new(&Vec3::new(0.5, 0.5, 0.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+            // Bottom right
+            Vertex::new(&Vec3::new(0.5, -0.5, 0.0), &Vec3::new(1.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+            // Bottom left
+            Vertex::new(&Vec3::new(-0.5, -0.5, 0.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+        ];
+
+        let indices: Vec<u32> = vec![
+            0, 1, 2, // First triangle
+            2, 3, 0, // Second triangle
+        ];
+
+        let mesh = Mesh::StaticMesh(StaticMeshData::new(&vertices, &indices).build(&ShaderProgram::default_shader_program()));
+
+        RenderableSprite {
+            mesh: mesh,
+            texture_array: Vec::new(),
+            position: Vec3::new(0.0, 0.0, 0.0),
+            rotation: Vec3::new(0.0, 0.0, 0.0),
+            scale: Vec3::new(1.0, 1.0, 1.0),
+        }
+    }
+
+    pub fn with_position(mut self, position: &Vec3) -> Self {
+        self.position = *position;
+        self
+    }
+
+    pub fn with_rotation(mut self, rotation: &Vec3) -> Self {
+        self.rotation = *rotation;
+        self
+    }
+
+    pub fn with_scale(mut self, scale: &Vec3) -> Self {
+        self.scale = *scale;
+        self
+    }
+
+    pub fn push_texture(&mut self, texture: &Texture) {
+        self.texture_array.push(*texture);
+    }
+
+    pub fn pop_texture(&mut self) -> Texture {
+        self.texture_array.pop().unwrap()
+    }
+
+    pub fn move_to(&mut self, position: &Vec3) {
+        self.position = *position;
+    }
+
+    pub fn move_by(&mut self, position: &Vec3) {
+        self.position += *position;
+    }
+
+    pub fn rotate_to(&mut self, rotation: &Vec3) {
+        self.rotation = *rotation;
+
+        if self.rotation.x > 360.0 || self.rotation.x < -360.0 {
+            self.rotation.x = 0.0;
+        }
+
+        if self.rotation.y > 360.0 || self.rotation.y < -360.0 {
+            self.rotation.y = 0.0;
+        }
+
+        if self.rotation.z > 360.0 || self.rotation.z < -360.0 {
+            self.rotation.z = 0.0;
+        }
+    }
+
+    pub fn rotate_by(&mut self, rotation: &Vec3) {
+        self.rotation += *rotation;
+
+        if self.rotation.x > 360.0 || self.rotation.x < -360.0 {
+            self.rotation.x = 0.0;
+        }
+
+        if self.rotation.y > 360.0 || self.rotation.y < -360.0 {
+            self.rotation.y = 0.0;
+        }
+
+        if self.rotation.z > 360.0 || self.rotation.z < -360.0 {
+            self.rotation.z = 0.0;
+        }
+    }
+
+    pub fn scale_to(&mut self, scale: &Vec3) {
+        self.scale = *scale;
+    }
+
+    pub fn scale_by(&mut self, scale: &Vec3) {
+        self.scale += *scale;
     }
 }

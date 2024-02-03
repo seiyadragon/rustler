@@ -4,7 +4,13 @@ use super::renderable::Renderable;
 use super::math::Deg;
 
 #[derive(Clone)]
-pub struct View {
+pub enum View {
+    View2D(View2D),
+    View3D(View3D),
+}
+
+#[derive(Clone)]
+pub struct View3D {
     pub size: Vec2,
     pub position: Vec3,
     pub front: Vec3,
@@ -12,9 +18,9 @@ pub struct View {
     pub fov: Deg,
 }
 
-impl View {
+impl View3D {
     pub fn new(size: Vec2) -> Self {
-        View {
+        View3D {
             size: size,
             position: Vec3::new(0.0, 0.0, 0.0),
             front: Vec3::new(0.0, 0.0, 1.0),
@@ -52,6 +58,32 @@ impl View {
             self.front, 
             self.up
         )
+    }
+}
+
+#[derive(Clone)]
+pub struct View2D {
+    pub size: Vec2,
+    pub position: Vec3,
+}
+
+impl View2D {
+    pub fn new(size: Vec2) -> Self {
+        View2D {
+            size: size,
+            position: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    pub fn with_position(mut self, position: Vec3) -> Self {
+        self.position = position;
+        self
+    }
+
+    pub fn get_view_matrix(&self) -> Mat4 {
+        Mat4::orthographic_lh(
+            0.0, self.size.x, self.size.y, 0.0, 0.1, 100.0
+        ) * Mat4::from_translation(self.position)
     }
 }
 
@@ -113,7 +145,7 @@ impl GraphicsLayer {
         child.parent = Some(Box::new(self));
     }
 
-    pub fn render_object(&self, obj: &dyn Renderable) {
+    pub fn render_object(&self, obj: &mut dyn Renderable) {
         obj.render(self);
     }
 

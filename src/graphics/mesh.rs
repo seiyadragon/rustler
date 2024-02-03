@@ -28,12 +28,9 @@ impl StaticMeshData {
         }
     }
 
-    pub fn new_with_y_up(vertex_array: &Vec<Vertex>, index_array: &Vec<u32>, y_up: bool) -> Self {
-        Self {
-            vertex_array: vertex_array.clone(),
-            index_array: index_array.clone(),
-            y_up: y_up,
-        }
+    pub fn with_z_up(mut self) -> Self {
+        self.y_up = false;
+        self
     }
     
     pub fn from_collada(path: &str) -> Self {
@@ -45,7 +42,11 @@ impl StaticMeshData {
             UpAxis::XUp => false,
         };
 
-        Self::new_with_y_up(&vertices, &indices, y_up)
+        if y_up { 
+            StaticMeshData::new(&vertices, &indices)
+        } else {
+            StaticMeshData::new(&vertices, &indices).with_z_up()
+        }
     }
 
     pub fn build(self, shader_program: &ShaderProgram) -> StaticMesh {
@@ -86,9 +87,9 @@ impl AnimatedMeshData {
         let (mut root_joint, joints) = ColladaLoader::load_collada_skeleton(&doc, &mut vertices);
         let animation = ColladaLoader::load_collada_animations(&doc, &joints);
         let y_up = match ColladaLoader::get_collada_up_axis(&doc) {
-            UpAxis::YUp => true,
-            UpAxis::ZUp => false,
-            UpAxis::XUp => false, // If this is the case you should rethink your life choices.
+            UpAxis::YUp => true,    // As god intended.
+            UpAxis::ZUp => false,   // This is good. Not great. *Cough* *Cough* Blender *Cough*
+            UpAxis::XUp => false,   // If this is the case you should rethink your life choices.
         };
         
         root_joint.calculate_inverse_bind_transform(&Mat4::IDENTITY);

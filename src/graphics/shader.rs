@@ -70,6 +70,7 @@ pub const DEFAULT_FRAGMENT_SHADER: &str = "
 
         if (should_sample_texture) {
             output_color = mix(texture(sampler_objs[sampler_index], tex_coords.xy), vec4(vertex_color, 1.0), 0.5);
+            //output_color = texture(sampler_objs[sampler_index], tex_coords.xy);
         } else {
             output_color = vec4(vertex_color, 1.0);
         }

@@ -15,10 +15,11 @@ use glutin::context::NotCurrentContext;
 use std::ffi::CString;
 use glutin::surface::Surface;
 use crate::util::event::{EventQueue, Input};
-use crate::{Entity, GraphicsLayer};
+use crate::{Entity, GraphicsLayer, View, View2D, View3D};
 use std::time::{Duration, Instant};
 
 use super::color::Color;
+use super::view;
 
 extern crate gl;
 
@@ -44,8 +45,15 @@ impl Window {
         let event_loop = winit::event_loop::EventLoop::new().unwrap();
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
-        let width = default_graphics_layer.view.size.x as u32;
-        let height = default_graphics_layer.view.size.y as u32;
+        let width = match &default_graphics_layer.view {
+            View::View2D(view) => view.size.x as u32,
+            View::View3D(view) => view.size.x as u32,
+        };
+
+        let height = match &default_graphics_layer.view {
+            View::View2D(view) => view.size.y as u32,
+            View::View3D(view) => view.size.y as u32,
+        };
 
         let window_builder = winit::window::WindowBuilder::new()
             .with_title(title)
