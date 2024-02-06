@@ -55,7 +55,7 @@ impl View3D {
             self.size.x / self.size.y, 0.1, 100.0
         ) * Mat4::look_at_lh(
             self.position, 
-            self.front, 
+            self.position + self.front, 
             self.up
         )
     }
@@ -65,6 +65,8 @@ impl View3D {
 pub struct View2D {
     pub size: Vec2,
     pub position: Vec3,
+    pub front: Vec3,
+    pub up: Vec3,
 }
 
 impl View2D {
@@ -72,6 +74,8 @@ impl View2D {
         View2D {
             size: size,
             position: Vec3::new(0.0, 0.0, 0.0),
+            front: Vec3::new(0.0, 0.0, 1.0),
+            up: Vec3::new(0.0, 1.0, 0.0),
         }
     }
 
@@ -81,9 +85,25 @@ impl View2D {
     }
 
     pub fn get_view_matrix(&self) -> Mat4 {
+        /*Mat4::orthographic_lh(0.0, self.size.x, self.size.y, 0.0, 0.0, 1.0) * Mat4::look_at_lh(
+            self.position, 
+            self.position + self.front, 
+            self.up
+        )*/
+
         Mat4::orthographic_lh(
-            0.0, self.size.x, self.size.y, 0.0, 0.1, 100.0
-        ) * Mat4::from_translation(self.position)
+            -self.size.x / 2.0, 
+            self.size.x / 2.0, 
+            -self.size.y / 2.0, 
+            self.size.y / 2.0, 
+            0.1, 
+            100.0
+        ) *
+        Mat4::look_at_lh(
+            self.position, 
+            self.position + self.front, 
+            self.up
+        )
     }
 }
 

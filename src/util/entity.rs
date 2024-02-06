@@ -10,7 +10,7 @@ use super::event::Input;
 
 pub struct Entity {
     pub children: Vec<Entity>,
-    pub variables: EntityVariableArray,
+    pub variables: Box<EntityVariableArray>,
     pub window: Option<Box<Window>>,
 
     pub init_func: fn(entity: &mut Entity),
@@ -23,7 +23,7 @@ impl Entity {
     pub fn new() -> Self {
         Entity {
             children: Vec::new(),
-            variables: EntityVariableArray::new(),
+            variables: Box::new(EntityVariableArray::new()),
             window: None,
 
             init_func: |entity: &mut Entity| {},
@@ -102,20 +102,16 @@ impl EntityVariableArray {
         }
     }
 
-    pub fn declare<T: 'static>(&mut self, name: &str, value: T) -> &mut T {
+    pub fn take_out<T: 'static>(&mut self, name: &str) -> T {
+        *self.variables.remove(name).unwrap().downcast::<T>().unwrap()
+    }
+
+    pub fn insert<T: 'static>(&mut self, name: &str, value: T) {
         self.variables.insert(name.to_string(), Box::new(value));
-
-        self.get(name)
     }
 
-    pub fn delete<T: 'static>(&mut self, name: &str) -> T {
-        *self.variables.remove(name).unwrap().downcast().unwrap()
-    }
-
-    pub fn get<T: 'static>(&mut self, name: &str) -> &mut T {
-        let ptr = self.variables.get_mut(name).unwrap();
-
-        ptr.downcast_mut::<T>().unwrap()
+    pub fn contains(&self, name: &str) -> bool {
+        self.variables.contains_key(name)
     }
 
     pub fn len(&self) -> usize {

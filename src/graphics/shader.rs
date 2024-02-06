@@ -10,27 +10,27 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
 
     const int MAX_BONES = 100;
     const int MAX_WEIGHTS = 3;
-
+    
     layout (location = 0) in vec3 in_position;
     layout (location = 1) in vec3 in_tex_coords;
     layout (location = 2) in vec3 in_normal;
     layout (location = 3) in vec3 in_bone_ids;
     layout (location = 4) in vec3 in_bone_weights;
     layout (location = 5) in vec3 in_color;
-
+    
     out vec3 tex_coords;
     out vec3 vertex_color;
-
+    
     uniform mat4 mvp;
     uniform mat4 joint_transforms[MAX_BONES];
-
+    
     void main() {
         bool should_animate = false;
-
+    
         if (in_bone_ids.x != 0.0 || in_bone_ids.y != 0.0 || in_bone_ids.z != 0.0) {
             should_animate = true;
         }
-
+    
         if (should_animate) {
             vec4 total_local_pos = vec4(0.0);
             vec4 total_normal = vec4(0.0);
@@ -43,12 +43,12 @@ pub const DEFAULT_VERTEX_SHADER: &str = "
                 vec4 world_normal = joint_transform * vec4(in_normal, 0.0);
                 total_normal += world_normal * in_bone_weights[i];
             }
-
+        
             gl_Position = mvp * total_local_pos;
         } else {
             gl_Position = mvp * vec4(in_position, 1.0);
         }
-
+    
         tex_coords = in_tex_coords;
         vertex_color = in_color;
     }

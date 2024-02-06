@@ -183,6 +183,9 @@ impl VAO {
         shader_program.use_program(false);
         vao.bind(false);
 
+        vbo.delete();
+        ibo.delete();
+
         vao
     }
 }

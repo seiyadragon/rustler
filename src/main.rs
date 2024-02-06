@@ -2,6 +2,7 @@
 use std::time::Duration;
 
 use graphics::renderable;
+use graphics::vertex::Vertex;
 use graphics::view;
 use util::entity;
 use util::event::EventQueue;
@@ -25,32 +26,76 @@ fn main() {
         .with_init(|entity| {
             let model = Entity::new()
                 .with_init(|entity| {
-                    let renderable = entity.variables.declare("renderable", RenderableMesh::new(
-                        Mesh::AnimatedMesh(AnimatedMeshData::from_collada("./res/model.dae").build(&ShaderProgram::default_shader_program()))
+                    /*entity.variables.insert("renderable", RenderableMesh::new(
+                        Mesh::StaticMesh(
+                            StaticMeshData::new(
+                                &vec![
+                                    Vertex::new(&Vec3::new(-0.5, -0.5, 0.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+                                    Vertex::new(&Vec3::new(0.5, -0.5, 0.0), &Vec3::new(1.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+                                    Vertex::new(&Vec3::new(0.5, 0.5, 0.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+                                    Vertex::new(&Vec3::new(-0.5, 0.5, 0.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
+                                ],
+                                &vec![
+                                    0, 1, 2,
+                                    2, 3, 0,
+                                ]
+                            ).build(&ShaderProgram::default_shader_program())
+                        ),
                     )
-                    .with_position(&Vec3::new(0.0, -5.0, 15.0))
-                    .with_rotation(&Vec3::new(0.0, 90.0, 0.0)));
-
-                    //renderable.push_texture(&Texture::from_file("./res/model_texture.png"));
+                        .with_position(&Vec3::new(0.0, 0.0, 0.0))
+                        .with_scale(&Vec3::new(100.0, 100.0, 1.0))
+                    );*/
+                    entity.variables.insert("renderable", RenderableSprite::new(&Vec2::new(200.0, 200.0)));
+                    entity.variables.insert("velocity", Vec2::new(0.0, 0.0));
+                    entity.variables.insert("jumping", false);
                 })
                 .with_render(|entity, graphics| {
-                    let renderable = entity.variables.get::<RenderableMesh>("renderable");
-                    renderable.rotate_by(&Vec3::new(0.0, 0.05, 0.0));
+                    //let mut renderable = entity.variables.take_out::<RenderableMesh>("renderable");  
+                    let mut renderable = entity.variables.take_out::<RenderableSprite>("renderable");                    
 
-                    graphics.render_object(renderable);
+                    graphics.render_object(&mut renderable);
+
+                    entity.variables.insert("renderable", renderable);
                 })
                 .with_update(|entity, event_queue, input, delta| {
-                    let renderable = entity.variables.get::<RenderableMesh>("renderable");
+                    //let mut renderable = entity.variables.take_out::<RenderableMesh>("renderable");  
+                    let mut renderable = entity.variables.take_out::<RenderableSprite>("renderable");
+                    let mut velocity = entity.variables.take_out::<Vec2>("velocity");
+                    let mut jumping = entity.variables.take_out::<bool>("jumping");
 
-                    renderable.get_animated_mesh().unwrap().animation_player.animate(delta, &Duration::from_secs_f32(2.5));
-
-                    if input.was_key_just_pressed(KeyCode::Space) {
-                        renderable.get_animated_mesh().unwrap().animation_player.pause_to_pose(&Duration::from_secs_f32(0.0));
+                    if !jumping && velocity.y > -9.8 {
+                        velocity.y -= 0.1;
                     }
 
-                    if input.was_key_just_released(KeyCode::Space) {
-                        renderable.get_animated_mesh().unwrap().animation_player.toggle_pause();
+                    if input.was_key_just_pressed(KeyCode::KeyW) && !jumping {
+                        velocity.y = 3.0;
+                        jumping = true;
                     }
+
+                    if renderable.position.y <= -490.0 {
+                        renderable.position.y = -490.0;
+                        jumping = false;
+                    }
+
+                    if input.was_key_just_pressed(KeyCode::KeyA) {
+                        velocity.x = -5.0;
+                    } else if input.was_key_just_released(KeyCode::KeyA) {
+                        velocity.x = 0.0;
+                    }
+
+                    if input.was_key_just_pressed(KeyCode::KeyD) {
+                        velocity.x = 5.0;
+                    } else if input.was_key_just_released(KeyCode::KeyD) {
+                        velocity.x = 0.0;
+                    }
+
+                    renderable.position.x += velocity.x;
+                    renderable.position.y += velocity.y;
+
+                    entity.variables.insert("renderable", renderable);
+                    entity.variables.insert("velocity", velocity);
+                    entity.variables.insert("jumping", jumping);
+
                 })
                 .with_exit(|entity| {
                     
@@ -72,7 +117,7 @@ fn main() {
 
     let view = View::View2D(
         View2D::new(
-            Vec2::new(800.0, 600.0)
+            Vec2::new(1920.0, 1080.0)
         )
     );
     let graphics = GraphicsLayer::new(&view);
