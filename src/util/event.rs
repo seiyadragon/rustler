@@ -1,4 +1,6 @@
 use std::collections::VecDeque;
+use glam::DVec2;
+use glam::UVec2;
 use winit::event::Event;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
@@ -44,6 +46,8 @@ pub struct Input {
     pub keys_last: [bool; 255],
     pub buttons: [bool; 32],
     pub buttons_last: [bool; 32],
+    pub mouse_position: DVec2,
+    pub mouse_position_last: DVec2,
 }
 
 impl Input {
@@ -59,6 +63,8 @@ impl Input {
             keys_last: keys_last,
             buttons: buttons,
             buttons_last: buttons_last,
+            mouse_position: DVec2::new(0.0, 0.0),
+            mouse_position_last: DVec2::new(0.0, 0.0),
         }
     }
 
@@ -94,6 +100,13 @@ impl Input {
         self.buttons[button as usize] = false;
     }
 
+    pub fn set_mouse_position(&mut self, position: &DVec2, window_size: &UVec2) {
+        //We need to shift the mouse position to be centered at the origin
+        let position = DVec2::new(position.x - window_size.x as f64 / 2.0, window_size.y as f64 / 2.0 - position.y);
+
+        self.mouse_position = position;
+    }
+
     pub fn update(&mut self) {
         for i in 0..self.keys.len() {
             self.keys_last[i] = self.keys[i];
@@ -102,6 +115,8 @@ impl Input {
         for i in 0..self.buttons.len() {
             self.buttons_last[i] = self.buttons[i];
         }
+
+        self.mouse_position_last = self.mouse_position;
     }
 
     pub fn key_to_scancode(key: KeyCode) -> u32 {
@@ -166,4 +181,41 @@ impl Input {
 
         self.buttons[Self::mouse_button_to_index(button) as usize]
     }
+
+    pub fn get_mouse_position(&self) -> DVec2 {
+        self.mouse_position
+    }
+
+    pub fn get_mouse_speed_per_frame(&self) -> DVec2 {
+        self.mouse_position - self.mouse_position_last
+    }
+
+    pub fn mouse_is_moving(&self) -> bool {
+        self.mouse_position != self.mouse_position_last
+    }
+
+    pub fn mouse_is_moving_in_direction(&self, direction: DVec2) -> bool {
+        (self.mouse_position - self.mouse_position_last).normalize() == direction
+    }
+
+    pub fn mouse_is_stopped(&self) -> bool {
+        self.mouse_position == self.mouse_position_last
+    }
+
+    pub fn mouse_is_at_position(&self, position: DVec2) -> bool {
+        self.mouse_position == position
+    }
+
+    pub fn mouse_is_at_position_with_tolerance(&self, position: DVec2, tolerance: f32) -> bool {
+        (self.mouse_position - position).length() < tolerance as f64
+    }
+
+    pub fn mouse_is_in_area(&self, position: DVec2, size: DVec2) -> bool {
+        self.mouse_position.x > position.x && self.mouse_position.x < position.x + size.x && self.mouse_position.y > position.y && self.mouse_position.y < position.y + size.y
+    }
+
+    pub fn mouse_is_in_area_with_tolerance(&self, position: DVec2, size: DVec2, tolerance: f32) -> bool {
+        self.mouse_position.x > position.x - tolerance as f64 && self.mouse_position.x < position.x + size.x + tolerance as f64 && self.mouse_position.y > position.y - tolerance as f64 && self.mouse_position.y < position.y + size.y + tolerance as f64
+    }
+
 }

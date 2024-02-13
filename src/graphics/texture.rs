@@ -1,8 +1,8 @@
 use gl::types::*;
 use glam::IVec2;
-use image::{io::Reader, RgbaImage};
+use image::{imageops::flip_vertical, io::Reader, RgbaImage};
 
-use crate::ColorBuffer;
+use crate::graphics::color::ColorBuffer;
 
 #[derive(Clone, Copy)]
 pub struct Texture {
@@ -39,7 +39,8 @@ impl Texture {
     }
 
     pub fn from_image(image: &RgbaImage) -> Self {
-        let data_array = image.as_raw();
+        let flipped_image = flip_vertical(image);
+        let data_array = flipped_image.as_raw();
         let size = IVec2::new(image.width() as i32, image.height() as i32);
         
         Self::from_vec(&size, data_array)

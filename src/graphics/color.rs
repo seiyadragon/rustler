@@ -1,9 +1,10 @@
 
 use glam::{Vec3, Vec4};
+use image::imageops::flip_vertical;
 use image::RgbaImage;
 use image::io::Reader;
 
-use crate::Texture;
+use crate::graphics::texture::Texture;
 
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -105,7 +106,8 @@ impl ColorBuffer {
     }
 
     pub fn from_image(image: &RgbaImage) -> Self {
-        let data_array = image.as_raw();
+        let flipped_image = flip_vertical(image);
+        let data_array = flipped_image.as_raw();
         
         Self::from_byte_vec(image.width(), image.height(), &data_array.clone())
     }

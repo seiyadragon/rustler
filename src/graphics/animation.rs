@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use glam::{Vec3, Mat4, Quat};
 
+use crate::graphics::texture::Texture;
+
 pub struct Joint {
     pub id: i32,
     pub name: String,
@@ -247,5 +249,42 @@ impl AnimationPlayer {
 
             self.animation.apply_pose_to_mesh(scaled_animation_time, &mut self.skeleton, &Mat4::IDENTITY);
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct SpriteAnimation {
+    pub frames: Vec<Texture>,
+    pub current_frame: usize,
+    pub elapsed_time: Duration,
+}
+
+impl SpriteAnimation {
+    pub fn new(frames: &Vec<Texture>) -> Self {
+        Self {
+            frames: frames.clone(),
+            current_frame: 0,
+            elapsed_time: Duration::from_secs(0),
+        }
+    }
+
+    pub fn animate(&mut self, delta: &Duration, length: &Duration) {
+        let frame_time = Duration::from_secs_f32(length.as_secs_f32() / self.frames.len() as f32);
+
+        if &self.elapsed_time >= &frame_time {
+            self.current_frame += 1;
+
+            if self.current_frame >= self.frames.len() {
+                self.current_frame = 0;
+            }
+
+            self.elapsed_time = Duration::from_secs(0);
+        } else {
+            self.elapsed_time += *delta;
+        }
+    }
+
+    pub fn get_current_frame(&self) -> &Texture {
+        &self.frames[self.current_frame]
     }
 }

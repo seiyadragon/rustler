@@ -1,127 +1,76 @@
+pub mod graphics;
+pub mod util;
 
 use std::time::Duration;
 
-use graphics::renderable;
-use graphics::vertex::Vertex;
-use graphics::view;
-use util::entity;
-use util::event::EventQueue;
+use glam::{Vec2, Vec3};
+use util::{entity::Entity, event::EventQueue};
+use graphics::{mesh::{AnimatedMesh, AnimatedMeshData, Mesh}, renderable::RenderableMesh, shader::{ShaderBuilder, ShaderFunction, ShaderProgram}, view::{GraphicsLayer, View, View2D, View3D}, window::{self, Window}};
 use util::event::Input;
-use glam::*;
-use graphics::color::*;
-use graphics::renderable::*;
-use graphics::view::*;
-use graphics::window::*;
-use graphics::shader::*;
-use graphics::texture::*;
-use util::entity::*;
-use graphics::mesh::*;
-use winit::keyboard::KeyCode;
-mod graphics;
-mod util;
+
+use crate::graphics::{shader::{ShaderSource, *}, texture::Texture};
+use crate::graphics::shader::ShaderType;
 
 
 fn main() {
-    let mut application = Entity::new()
-        .with_init(|entity| {
-            let model = Entity::new()
-                .with_init(|entity| {
-                    /*entity.variables.insert("renderable", RenderableMesh::new(
-                        Mesh::StaticMesh(
-                            StaticMeshData::new(
-                                &vec![
-                                    Vertex::new(&Vec3::new(-0.5, -0.5, 0.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
-                                    Vertex::new(&Vec3::new(0.5, -0.5, 0.0), &Vec3::new(1.0, 0.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
-                                    Vertex::new(&Vec3::new(0.5, 0.5, 0.0), &Vec3::new(1.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
-                                    Vertex::new(&Vec3::new(-0.5, 0.5, 0.0), &Vec3::new(0.0, 1.0, 0.0), &Vec3::new(0.0, 0.0, 1.0)),
-                                ],
-                                &vec![
-                                    0, 1, 2,
-                                    2, 3, 0,
-                                ]
-                            ).build(&ShaderProgram::default_shader_program())
-                        ),
+    let mut entry = Entity::new()
+        .with_init(|entity: &mut Entity| {
+            let obj = Entity::new()
+                .with_init(|entity: &mut Entity| {       
+                    let vertex_builder = ShaderBuilderTemplate::animated_vertex_shader("#version 450 core");
+                    println!("{}", vertex_builder);
+
+                    let fragment_builder = ShaderBuilderTemplate::lighting_fragment_shader("#version 450 core");
+                    println!("{}", fragment_builder);
+
+                    let built_vertex = vertex_builder.build(&ShaderType::VERTEX);
+                    let compiled_vertex = built_vertex.compile().unwrap();
+
+                    let build_fragment = fragment_builder.build(&ShaderType::FRAGMENT);
+                    let compiled_fragment = build_fragment.compile().unwrap();
+
+                    let mut program = ShaderProgram::new();
+                    program.attach_shader(&compiled_vertex);
+                    program.attach_shader(&compiled_fragment);
+                    program.build();
+
+                    let mesh = RenderableMesh::new(
+                        Mesh::AnimatedMesh(
+                            AnimatedMeshData::from_collada("./res/model.dae")
+                            .build(&program)
+                        )
                     )
-                        .with_position(&Vec3::new(0.0, 0.0, 0.0))
-                        .with_scale(&Vec3::new(100.0, 100.0, 1.0))
-                    );*/
-                    entity.variables.insert("renderable", RenderableSprite::new(&Vec2::new(200.0, 200.0)));
-                    entity.variables.insert("velocity", Vec2::new(0.0, 0.0));
-                    entity.variables.insert("jumping", false);
+                        .with_position(&Vec3::new(0.0, -10.0, 15.0))
+                        .with_texture(&Texture::from_file("./res/model_texture.png"))
+                    ;
+
+                    entity.variables.insert("mesh", mesh);
                 })
-                .with_render(|entity, graphics| {
-                    //let mut renderable = entity.variables.take_out::<RenderableMesh>("renderable");  
-                    let mut renderable = entity.variables.take_out::<RenderableSprite>("renderable");                    
+                .with_render(|entity: &mut Entity, graphics: &mut GraphicsLayer| {
+                    let mut mesh = entity.variables.take_out::<RenderableMesh>("mesh");
 
-                    graphics.render_object(&mut renderable);
+                    mesh.rotate_by(&Vec3::new(0.0, 1.0, 0.0));
 
-                    entity.variables.insert("renderable", renderable);
+                    graphics.render_object(&mut mesh);
+
+                    entity.variables.insert("mesh", mesh);
                 })
-                .with_update(|entity, event_queue, input, delta| {
-                    //let mut renderable = entity.variables.take_out::<RenderableMesh>("renderable");  
-                    let mut renderable = entity.variables.take_out::<RenderableSprite>("renderable");
-                    let mut velocity = entity.variables.take_out::<Vec2>("velocity");
-                    let mut jumping = entity.variables.take_out::<bool>("jumping");
+                .with_update(|entity: &mut Entity, event_queue: &mut EventQueue, input: &mut Input, delta: &Duration| {
+                    let mut mesh = entity.variables.take_out::<RenderableMesh>("mesh");
 
-                    if !jumping && velocity.y > -9.8 {
-                        velocity.y -= 0.1;
-                    }
+                    mesh.get_animated_mesh().unwrap().animation_player.animate(delta, &Duration::from_secs_f32(1.0));
 
-                    if input.was_key_just_pressed(KeyCode::KeyW) && !jumping {
-                        velocity.y = 3.0;
-                        jumping = true;
-                    }
-
-                    if renderable.position.y <= -490.0 {
-                        renderable.position.y = -490.0;
-                        jumping = false;
-                    }
-
-                    if input.was_key_just_pressed(KeyCode::KeyA) {
-                        velocity.x = -5.0;
-                    } else if input.was_key_just_released(KeyCode::KeyA) {
-                        velocity.x = 0.0;
-                    }
-
-                    if input.was_key_just_pressed(KeyCode::KeyD) {
-                        velocity.x = 5.0;
-                    } else if input.was_key_just_released(KeyCode::KeyD) {
-                        velocity.x = 0.0;
-                    }
-
-                    renderable.position.x += velocity.x;
-                    renderable.position.y += velocity.y;
-
-                    entity.variables.insert("renderable", renderable);
-                    entity.variables.insert("velocity", velocity);
-                    entity.variables.insert("jumping", jumping);
-
-                })
-                .with_exit(|entity| {
-                    
+                    entity.variables.insert("mesh", mesh);
                 })
             ;
 
-            entity.push(model);
-        })
-        .with_render(|entity, graphics| {
-            
-        })
-        .with_update(|entity, event_queue, input, delta| {
-            
-        })
-        .with_exit(|entity| {
-            
+            entity.push(obj);
         })
     ;
 
-    let view = View::View2D(
-        View2D::new(
-            Vec2::new(1920.0, 1080.0)
-        )
-    );
+    let view = View::View3D(View3D::new(Vec2::new(1920.0, 1080.0)));
     let graphics = GraphicsLayer::new(&view);
-    let window = Window::new("Rustler", &graphics).unwrap();
+    let window = Window::new("Rustler", &graphics);
 
-    window.run(&mut application, 60, 0);
+    window.unwrap().run(&mut entry, 20, 0);
 }

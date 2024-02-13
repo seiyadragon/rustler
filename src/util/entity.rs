@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::graphics::view::GraphicsLayer;
-use crate::Window;
+use crate::graphics::window::Window;
 use super::event::EventQueue;
 use super::event::Input;
 

@@ -1,3 +1,4 @@
+use glam::{DVec2, UVec2};
 use glutin::config::Config;
 use glutin::surface::WindowSurface;
 use winit::dpi::{LogicalSize, PhysicalSize};
@@ -15,11 +16,10 @@ use glutin::context::NotCurrentContext;
 use std::ffi::CString;
 use glutin::surface::Surface;
 use crate::util::event::{EventQueue, Input};
-use crate::{Entity, GraphicsLayer, View, View2D, View3D};
+use crate::util::entity::Entity;
+use crate::graphics::view::{GraphicsLayer, View};
 use std::time::{Duration, Instant};
-
 use super::color::Color;
-use super::view;
 
 extern crate gl;
 
@@ -154,7 +154,6 @@ impl Window {
                     self.current_context = Some(gl_context);
                 
                     gl::load_with(|s| self.gl_config.display().get_proc_address(CString::new(s).unwrap().as_c_str()) as *const _);
-                    Window::clear_screen(Color::new(165, 93, 63, 255));
 
                     self.internal_window = Some(window);
                     self.is_context_current = true;
@@ -163,8 +162,11 @@ impl Window {
                         gl::Enable(gl::DEPTH_TEST);
                         gl::DepthFunc(gl::LESS);
 
-                        gl::Enable(gl::CULL_FACE);
-                        gl::CullFace(gl::BACK);
+                        //gl::Enable(gl::CULL_FACE);
+                        //gl::CullFace(gl::BACK);
+
+                        gl::Enable( gl::BLEND );
+                        gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
                     }
 
                     loop_handler.init();
@@ -212,7 +214,7 @@ impl Window {
                 },
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::RedrawRequested => {
-                        Window::clear_screen(Color::new(165, 93, 63, 255));
+                        Window::clear_screen(Color::new(0, 0, 0, 255));
                         loop_handler.render(&mut self.default_graphics_layer);
                         self.context_surface.as_ref().unwrap().swap_buffers(self.current_context.as_ref().unwrap()).unwrap();
                     },
@@ -251,6 +253,12 @@ impl Window {
                                 self.input.set_button_unpressed(Input::mouse_button_to_index(button));
                             }
                         }
+                    },
+                    WindowEvent::CursorMoved { device_id, position } => {
+                        self.input.set_mouse_position(
+                            &DVec2::new(position.x as f64, position.y as f64), 
+                         &UVec2::new(self.size.width, self.size.height)
+                        );
                     },
                     _ => ()
                 },

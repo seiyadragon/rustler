@@ -1,5 +1,10 @@
-use crate::{AnimatedMesh, ShaderProgram, StaticMesh, StaticMeshData, Texture, View};
-use super::shader;
+use std::time::Duration;
+
+use crate::graphics::mesh::{AnimatedMesh, StaticMesh, StaticMeshData};
+use crate::graphics::view::View;
+use crate::graphics::shader::ShaderProgram;
+use crate::graphics::texture::Texture;
+use super::animation::SpriteAnimation;
 use super::{math::Deg, vertex::Vertex};
 use super::mesh::Mesh;
 use super::view::GraphicsLayer;
@@ -12,7 +17,7 @@ pub trait Renderable {
 
 pub struct RenderableMesh {
     pub mesh: Mesh,
-    pub texture_array: Vec<Texture>,
+    pub texture: Option<Texture>,
     pub position: Vec3,
     pub rotation: Vec3,
     pub scale: Vec3,
@@ -22,7 +27,7 @@ impl RenderableMesh {
     pub fn new(mesh: Mesh) -> Self {
         RenderableMesh {
             mesh: mesh,
-            texture_array: Vec::new(),
+            texture: None,
             position: Vec3::new(0.0, 0.0, 0.0),
             rotation: Vec3::new(0.0, 0.0, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),
@@ -44,12 +49,9 @@ impl RenderableMesh {
         self
     }
 
-    pub fn push_texture(&mut self, texture: &Texture) {
-        self.texture_array.push(*texture);
-    }
-
-    pub fn pop_texture(&mut self) -> Texture {
-        self.texture_array.pop().unwrap()
+    pub fn with_texture(mut self, texture: &Texture) -> Self {
+        self.texture = Some(*texture);
+        self
     }
 
     pub fn get_static_mesh(&mut self) -> Option<&mut StaticMesh> {
@@ -153,16 +155,14 @@ impl Renderable for RenderableMesh {
         };
 
         shader_program.use_program(true);
+
         let mvp = view_matrix * layer.get_graphics_layer_matrix() * model_matrix;
         shader_program.set_uniform_mat4_f32("mvp", &mvp);
 
-        for i in 0..self.texture_array.len() {
-            self.texture_array[i].bind(i as u32, true)
-        }
-
-        if self.texture_array.len() == 0 {
+        if self.texture.is_none() {
             shader_program.set_uniform_bool("should_sample_texture", false);
         } else {
+            self.texture.unwrap().bind(0, true);
             shader_program.set_uniform_bool("should_sample_texture", true);
         }
 
@@ -179,8 +179,8 @@ impl Renderable for RenderableMesh {
             },
         }
 
-        for i in 0..self.texture_array.len() {
-            self.texture_array[i].bind(i as u32, false)
+        if self.texture.is_some() {
+            self.texture.unwrap().bind(0, false);
         }
 
         shader_program.use_program(false);
@@ -198,22 +198,23 @@ impl Drop for RenderableMesh {
             },
         }
 
-        for texture in &self.texture_array {
-            texture.delete();
+        if self.texture.is_some() {
+            self.texture.unwrap().delete();
         }
     }
 }
 
 pub struct RenderableSprite {
     pub mesh: StaticMesh,
-    pub texture_array: Vec<Texture>,
+    pub texture: Option<Texture>,
+    pub animation: Option<SpriteAnimation>,
     pub position: Vec3,
     pub rotation: Vec3,
     pub scale: Vec3,
 }
 
 impl RenderableSprite {
-    pub fn new(size: &Vec2) -> Self {
+    pub fn new(size: &Vec2, shader: &ShaderProgram) -> Self {
         let w = size.x;
         let h = size.y;
 
@@ -229,11 +230,12 @@ impl RenderableSprite {
             2, 3, 0,
         ];
 
-        let mesh = StaticMeshData::new(&vertices, &indices).build(&ShaderProgram::default_shader_program());
+        let mesh = StaticMeshData::new(&vertices, &indices).build(shader);
 
         RenderableSprite {
             mesh: mesh,
-            texture_array: Vec::new(),
+            texture: None,
+            animation: None,
             position: Vec3::new(0.0, 0.0, 0.0),
             rotation: Vec3::new(0.0, 0.0, 0.0),
             scale: Vec3::new(w, h, 1.0),
@@ -255,12 +257,14 @@ impl RenderableSprite {
         self
     }
 
-    pub fn push_texture(&mut self, texture: &Texture) {
-        self.texture_array.push(*texture);
+    pub fn with_texture(mut self, texture: &Texture) -> Self {
+        self.texture = Some(*texture);
+        self
     }
 
-    pub fn pop_texture(&mut self) -> Texture {
-        self.texture_array.pop().unwrap()
+    pub fn with_animation(mut self, animation: &SpriteAnimation) -> Self {
+        self.animation = Some(animation.clone());
+        self
     }
 
     pub fn move_to(&mut self, position: &Vec3) {
@@ -310,6 +314,14 @@ impl RenderableSprite {
     pub fn scale_by(&mut self, scale: &Vec3) {
         self.scale += *scale;
     }
+
+    pub fn animate(&mut self, delta: &Duration, length: &Duration) {
+        if self.animation.is_some() {
+            self.animation.as_mut().unwrap().animate(delta, length);
+            self.texture = Some(self.animation.as_ref().unwrap().get_current_frame().clone());
+        }
+    }
+
 }
 
 impl Renderable for RenderableSprite {
@@ -345,13 +357,10 @@ impl Renderable for RenderableSprite {
         let mvp = view_matrix * layer.get_graphics_layer_matrix() * model_matrix;
         shader_program.set_uniform_mat4_f32("mvp", &mvp);
 
-        for i in 0..self.texture_array.len() {
-            self.texture_array[i].bind(i as u32, true)
-        }
-
-        if self.texture_array.len() == 0 {
+        if self.texture.is_none() {
             shader_program.set_uniform_bool("should_sample_texture", false);
         } else {
+            self.texture.unwrap().bind(0, true);
             shader_program.set_uniform_bool("should_sample_texture", true);
         }
 
@@ -360,8 +369,8 @@ impl Renderable for RenderableSprite {
 
         self.mesh.render();            
 
-        for i in 0..self.texture_array.len() {
-            self.texture_array[i].bind(i as u32, false)
+        if self.texture.is_some() {
+            self.texture.unwrap().bind(0, false);
         }
 
         shader_program.use_program(false);
@@ -372,8 +381,8 @@ impl Drop for RenderableSprite {
     fn drop(&mut self) {
         self.mesh.delete();
 
-        for texture in &self.texture_array {
-            texture.delete();
+        if self.texture.is_some() {
+            self.texture.unwrap().delete();
         }
     }
 }
