@@ -1,4 +1,4 @@
-use glam::{DVec2, UVec2};
+use glam::{DVec2, UVec2, Vec2};
 use glutin::config::Config;
 use glutin::surface::WindowSurface;
 use winit::dpi::{LogicalSize, PhysicalSize};
@@ -220,6 +220,16 @@ impl Window {
                     },
                     WindowEvent::Resized(size) => {
                         self.size = size;
+
+                        match &mut self.default_graphics_layer.view {
+                            View::View2D(view) => {
+                                view.size = Vec2::new(size.width as f32, size.height as f32);
+                            },
+                            View::View3D(view) => {
+                                view.size = Vec2::new(size.width as f32, size.height as f32);
+                            }
+                        }
+
                         unsafe {
                             gl::Viewport(0, 0, self.size.width as i32, self.size.height as i32);
                         }

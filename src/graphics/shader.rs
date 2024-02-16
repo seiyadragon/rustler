@@ -383,7 +383,8 @@ impl ShaderBuilder {
 
     pub fn to_string(&self) -> String {
         let mut shader_string = String::new();
-        shader_string.push_str((self.version.clone() + "\n").as_str());
+        shader_string.push_str(&self.version.as_str());
+        shader_string.push_str("\n");
 
         for constant in &self.constants {
             shader_string.push_str(constant.as_str());
@@ -512,7 +513,7 @@ impl ShaderBuilderTemplate {
             vertex_color = in_color;
             vertex_position = gl_Position.xyz;
         }
-         */
+        */
 
         let mut shader_builder = ShaderBuilder::new(version);
             
@@ -588,8 +589,6 @@ impl ShaderBuilderTemplate {
         /*
         #version 450 core
 
-        const int MAX_LIGHTS = 10;
-
         in vec3 vertex_position;
         in vec3 tex_coords;
         in vec3 vertex_normals;
@@ -599,8 +598,6 @@ impl ShaderBuilderTemplate {
 
         uniform bool should_sample_texture;
         uniform sampler2D sampler_objs[32];
-        uniform vec4 light_sources[MAX_LIGHTS];
-        uniform vec4 light_colors[MAX_LIGHTS];
 
         void main() {
             highp int sampler_index = int(tex_coords.z);
@@ -615,8 +612,6 @@ impl ShaderBuilderTemplate {
 
         let mut shader_builder = ShaderBuilder::new(version);
 
-        shader_builder.dec_const("int", "MAX_LIGHTS", "10");
-
         shader_builder.dec_in_no_location("vec3", "vertex_position");
         shader_builder.dec_in_no_location("vec3", "tex_coords");
         shader_builder.dec_in_no_location("vec3", "vertex_normals");
@@ -626,8 +621,6 @@ impl ShaderBuilderTemplate {
 
         shader_builder.dec_uniform("bool", "should_sample_texture");
         shader_builder.dec_uniform("sampler2D", "sampler_objs[32]");
-        shader_builder.dec_uniform("vec4", "light_sources[MAX_LIGHTS]");
-        shader_builder.dec_uniform("vec4", "light_colors[MAX_LIGHTS]");
 
         shader_builder.main.dec_var("highp int", "sampler_index", "int(tex_coords.z)");
 
@@ -644,6 +637,9 @@ impl ShaderBuilderTemplate {
         shader_builder
     }
 
+
+    //TODO: Fix this: I'm bad at lighting lol
+    /*
     pub fn lighting_fragment_shader(version: &str) -> ShaderBuilder {
         let mut shader_builder = ShaderBuilder::new(version);
 
@@ -661,12 +657,14 @@ impl ShaderBuilderTemplate {
         shader_builder.dec_uniform("vec3", "light_sources[MAX_LIGHTS]");
         shader_builder.dec_uniform("vec3", "light_colors[MAX_LIGHTS]");
 
+        shader_builder.dec_uniform("vec3", "light_position_uni");
+
         shader_builder.main.dec_var("vec3", "normal", "normalize(vertex_normals.xyz)");
 
-        shader_builder.main.dec_var("vec3", "light_position", "vec3(1.0, 0.0, 10.0)");
-        shader_builder.main.dec_var("vec3", "light_color", "vec3(1.0, 1.0, 1.0)");
+        shader_builder.main.dec_var("vec3", "light_position", "vec3(0.0, 0.0, 10.0)");
+        shader_builder.main.dec_var("vec3", "light_color", "light_position_uni");
         shader_builder.main.dec_var("vec3", "light_direction", "normalize(light_position - vertex_position)");
-        shader_builder.main.dec_var("float", "ambient_light", "0.5");
+        shader_builder.main.dec_var("float", "ambient_light", "0.1");
 
         shader_builder.main.dec_var("float", "diffuse_strength", "max(0.0, dot(light_direction, normal))");
         shader_builder.main.dec_var("vec3", "diffuse_color", "diffuse_strength * light_color");
@@ -689,8 +687,11 @@ impl ShaderBuilderTemplate {
 
         shader_builder.main.do_action("output_color = vec4(final_vertex_color * lighting, 1.0)");
 
+        println!("{}", shader_builder.to_string());
+
         shader_builder
     }
+    */
 }
 
 #[derive(Debug, Clone)]

@@ -156,6 +156,9 @@ impl Renderable for RenderableMesh {
 
         shader_program.use_program(true);
 
+        let light_position = Vec3::new(0.5, 0.2, 1.0);
+        shader_program.set_uniform_vec3_f32("light_position_uni", &light_position);
+
         let mvp = view_matrix * layer.get_graphics_layer_matrix() * model_matrix;
         shader_program.set_uniform_mat4_f32("mvp", &mvp);
 
